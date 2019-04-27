@@ -23,6 +23,7 @@ while (vc.isOpened()):
 	# aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
 	corners, ids, rejectedImgPoints = aruco.detectMarkers(
 	    image, aruco_dict, parameters=parameters)
+	
 	# print(corners, ids, rejectedImgPoints)
 	aruco.drawDetectedMarkers(image, corners, ids)
 	aruco.drawDetectedMarkers(image, rejectedImgPoints, borderColor=(100, 0, 240))
