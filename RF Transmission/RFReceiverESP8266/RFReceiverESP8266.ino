@@ -17,6 +17,8 @@ int radioNumber = 2;
 // radio(ce_pin, cs_pin)
 // apparently the ce pin turns on/off the board whereas the cs_pin is the chip select for the spi
 RF24 radio(D8,D2);
+
+const int message_length = 300;
 /**********************************************************/
 
 // so technically the first 32 bits need to be the same for multiple reading pipes, but here it looks like they did the opposite
@@ -64,7 +66,7 @@ void loop() {
   if ( role == 0 )
   {
     unsigned long got_time;
-    char message[100];
+    char message[message_length];
     
     if( radio.available()){
                                                                     // Variable for the received timestamp
@@ -72,12 +74,12 @@ void loop() {
 //        radio.read( &got_time, sizeof(unsigned long) );             // Get the payload
 //      }
         while (radio.available()) {                                   // While there is data ready
-          radio.read( &message, 100 * sizeof(char) );             // Get the payload
+          radio.read( &message, message_length * sizeof(char) );             // Get the payload
          }
      
 //      radio.stopListening();                                        // First, stop listening so we can talk   
 ////      radio.write( &got_time, sizeof(unsigned long) );              // Send the final one back.    
-//      radio.write( &message, 100 * sizeof(char) );              // Send the final one back.   
+//      radio.write( &message, message_length * sizeof(char) );              // Send the final one back.   
 //      radio.startListening();                                       // Now, resume listening so we catch the next packets.     
       //Serial.print(F("Sent response "));
 //      Serial.println(got_time);  
