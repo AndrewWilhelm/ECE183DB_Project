@@ -4,8 +4,8 @@ import cv2.aruco as aruco
 import time
 import serial
 
-# ser = serial.Serial('COM4', 115200, timeout=0)
-# print(ser.name)
+ser = serial.Serial('COM4', 115200, timeout=0)
+print(ser.name)
 #NOTE: Our camera is 480 height by 640 width
 # So the possible x values are 0 to 640 and the max y values are 0 to 480
 # The bottom right corner is (479,639)
@@ -94,15 +94,7 @@ while (vc.isOpened()):
                 fourCorners[2] = getRectMid(corners[i][0])
             elif ids[i] == 3:
                 fourCorners[3] = getRectMid(corners[i][0])
-            elif ids[i] == 4: #Identified an obstacle
-                # print(corners)
-                # print(corners[i])
-                rect = []
-                rect.append(corners[i])
-                aruco.drawDetectedMarkers(image, rect, ids[i], (0,0,255))
-                # print(corners[i][0])
-                # cv2.rectangle(image, corners[i][0],(0,0,255),15)
-            elif ids[i] == 5: #Identified a robot
+            elif ids[i] == 5:
                 if (len(fourCorners[0]) > 0 and len(fourCorners[1]) > 0 and len(fourCorners[2]) > 0 and len(fourCorners[3]) > 0):
                     #print("Scaled: " + str(scalePoint(fourCorners, getRectMid(corners[i][0]))))
                     [x,y] = scalePoint(fourCorners, getRectMid(corners[i][0]))
@@ -124,32 +116,23 @@ while (vc.isOpened()):
         # exit on ESC
         break
 
-    # temp = ser.read(1000)
-    # if temp != b'':
-    #     if temp == b'q' or temp == 'Q':
-    #         ser.close()
-    #         break
-    #     print(temp)
-    # time.sleep(0.1)
-    # if iter % 10 == 0:
-    #     sx = str(x)
-    #     sy = str(y)
-    #     sa = str(a)
-    sx = str(x)
-    sy = str(y)
-    sa = str(a)
-    #   message = str(node) + str(' x:') + sx[0:4] + ' y:' + sy[0:4] + ' a:' + sa[0:4]
-    message = str(' x:') + sx[0:4] + ' y:' + sy[0:4] + ' a:' + sa[0:4]
-    print(message)
-    # print(fourCorners)
-    #     ser.write(str.encode(message))
-    #     ser.flush()
-    #     # print("Just told the transmitter to send")
-    #     # print(b'2-x:1y:1a:1')
-    # iter = iter + 1
+    temp = ser.read(1000)
+    if temp != b'':
+        if temp == b'q' or temp == 'Q':
+            ser.close()
+            break
+        print(temp)
+    time.sleep(0.1)
+    if iter % 10 == 0:
+        sx = str(x)
+        sy = str(y)
+        sa = str(a)
+        message = str(node) + str(' x:') + sx[0:7] + ' y:' + sy[0:7] + ' a:' + sa[0:7]
+        ser.write(str.encode(message))
+        ser.flush()
+        # print("Just told the transmitter to send")
+        # print(b'2-x:1y:1a:1')
+    iter = iter + 1
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-
-#NOTE: Scaling in X-direction is pretty inaccurate. This needs to be scaled appropriately with the y value
-# Since the values of x of the bottom corners are wider than the x values at the top of the board.

@@ -3,7 +3,7 @@
 import serial
 import time
 
-ser = serial.Serial('COM12', 115200, timeout=0)
+ser = serial.Serial('COM4', 115200, timeout=0)
 print(ser.name)
 # for x in range(100):
 #     temp = ser.read(100)
