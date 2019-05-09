@@ -33,7 +33,7 @@ def readRFID():
     write_text.configure(state="normal")
     write_text.delete(1.0,'end-1c')
     write_text.insert(1.0, rfidMessage)
-    write_text.configure(state="disabledk")
+    write_text.configure(state="disabled")
 
 def writeRFID():
     content = write_text.get(1.0,'end-1c')
