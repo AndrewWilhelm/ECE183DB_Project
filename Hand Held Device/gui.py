@@ -4,28 +4,98 @@ import serial
 import time
 
 import tkinter as tk
+from functools import partial
 
+state = "Write"
+rfidMessage = "I've been read from RFID"
 
 window = tk.Tk()
 window.title("Hand Held Device Controller")
-window.geometry('500x500')
+window.geometry('1000x1000')
 lbl = tk.Label(window, text="Hand Held Device Controller", font=("Calibri", 20))
 lbl.pack(fill=tk.X)
 
-readWriteFrame = tk.LabelFrame(window, text=" Change Mode Below ", font=("Calibri", 12))
+readWriteFrame = tk.LabelFrame(window, text=" Insert Text to Write Below ", font=("Calibri", 12))
 readWriteFrame.pack(fill=tk.BOTH, pady=10)
 write_text = tk.Text(readWriteFrame)
 # write_entry.grid(row=0,column=0, pady=10)
 write_text.pack(side="left", fill=tk.BOTH, pady=10)
-read_area = tk.Label(readWriteFrame, text="Data On RFID Tag will Appear Here", font=("Calibri", 12))
+
+read_text = tk.StringVar()
+read_text.set("Data On RFID Tag will Appear Here")
+read_area = tk.Label(readWriteFrame, textvariable=read_text, font=("Calibri", 12))
+read_area.pack(side="left", fill=tk.BOTH, pady=10)
 # read_area.grid(row=0,column=1, pady=10)
-read_area.pack(side="right", fill=tk.BOTH, pady=10)
+
+def readRFID():
+    read_text.set(rfidMessage)
+
+    write_text.configure(state="normal")
+    write_text.delete(1.0,'end-1c')
+    write_text.insert(1.0, rfidMessage)
+    write_text.configure(state="disabledk")
+
+def writeRFID():
+    content = write_text.get(1.0,'end-1c')
+    print(content)
+
+def performState():
+    if rwButton_text.get() == "Read":
+        readRFID()
+    else:
+        writeRFID()
+
+actionFrame = tk.LabelFrame(window, text="Read/Write", font=("Calibri", 12))
+actionFrame.pack(fill=tk.BOTH, pady=10)
+rwButton_text = tk.StringVar()
+rwButton_text.set(state)
+btn = tk.Button(actionFrame, textvariable=rwButton_text, command=performState)
+btn.pack(side="top", fill=tk.BOTH, pady=10)
+
+
+modeFrame = tk.LabelFrame(window, text=" Change Mode Below ", font=("Calibri", 12))
+modeFrame.pack(fill=tk.BOTH, pady=10)
+
+
+message = "Current Mode: "
+
+
 
 def clicked():
-    res = "Welcome to " + txt.get()
-    lbl.configure(text=res)
-btn = tk.Button(window, text="Click Me", command=clicked)
+    # res = "Welcome to " + txt.get()
+    # lbl.configure(text=res)
+    message = "Current Mode: "
+    if btn_text.get() == message + "Read":
+        state = "Write"
+        write_text.configure(state="normal")
+    else:
+        state = "Read"
+        write_text.configure(state="disabled")
+    # btn_text.set("Current Mode: " + state)    
+    # print("running")
+    # print(state)
+    btn_text.set(message + state)
+    rwButton_text.set(state)
+    # print(btn_text.get())
+    # btn_text.set("HEY" + state)
+
+btn_text = tk.StringVar()
+btn_text.set(message + state)
+btn = tk.Button(modeFrame, textvariable=btn_text, command=clicked)
+btn.pack(side="top", fill=tk.BOTH, pady=10)
+# action_with_arg = partial(clicked,state)
+# btn = tk.Button(window, text="Change Mode", command=clicked)
+# btn = tk.Button(window, text="Change Mode", command=action_with_arg)
 btn.pack(fill=tk.X)
+
+
+# read_area = tk.Label(window, textvariable=btn_text, font=("Calibri", 12))
+# read_area.pack(side="top", fill=tk.BOTH, pady=10)
+
+# def update_btn_text():
+#     btn_text.set("b")
+
+
 
 # labelframe = tk.LabelFrame(window, text=" 2.) Enter Coordinates for Tag Below (If Required)")
 # labelframe.pack(fill=tk.X, pady=10)
