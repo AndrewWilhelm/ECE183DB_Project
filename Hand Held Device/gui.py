@@ -6,6 +6,9 @@ import time
 import tkinter as tk
 from functools import partial
 
+ser = serial.Serial('COM4', 115200, timeout=0.1)
+print(ser.name)
+
 state = "Write"
 rfidMessage = "I've been read from RFID"
 
@@ -27,21 +30,26 @@ read_area = tk.Label(readWriteFrame, textvariable=read_text, font=("Calibri", 12
 read_area.pack(side="left", fill=tk.BOTH, pady=10)
 # read_area.grid(row=0,column=1, pady=10)
 
-def readRFID():
-    read_text.set(rfidMessage)
+def updateRead(message):
+
+    read_text.set(message)
 
     write_text.configure(state="normal")
     write_text.delete(1.0,'end-1c')
-    write_text.insert(1.0, rfidMessage)
+    write_text.insert(1.0, message)
     write_text.configure(state="disabled")
 
 def writeRFID():
     content = write_text.get(1.0,'end-1c')
-    print(content)
+
+    # print(content)
+    message = 'w ' + content
+    ser.write(str.encode(message))
+    ser.flush()
 
 def performState():
     if rwButton_text.get() == "Read":
-        readRFID()
+        print("This button has no functionality - use the hardware button for reading.")
     else:
         writeRFID()
 
@@ -65,12 +73,16 @@ def clicked():
     # res = "Welcome to " + txt.get()
     # lbl.configure(text=res)
     message = "Current Mode: "
+    #print(btn_text.get())
     if btn_text.get() == message + "Read":
         state = "Write"
         write_text.configure(state="normal")
     else:
         state = "Read"
         write_text.configure(state="disabled")
+        code = 'r'
+        ser.write(str.encode(code))
+        ser.flush()
     # btn_text.set("Current Mode: " + state)    
     # print("running")
     # print(state)
@@ -88,6 +100,32 @@ btn.pack(side="top", fill=tk.BOTH, pady=10)
 # btn = tk.Button(window, text="Change Mode", command=action_with_arg)
 btn.pack(fill=tk.X)
 
+clicked()
+while True:
+    window.update_idletasks()
+    window.update()
+
+    # temp = ser.read(1000)
+    temp = ser.readline()
+    # print(temp)
+
+    # For some reason, state doesn't update in this loop... s is used to hold the updated current state
+    s = btn_text.get()
+    # print(s)
+    s = s[-4:]
+    # print(s)
+    if temp != b'':
+        # print(temp)
+        # print((temp[0]))
+        # print(state)
+        if temp[0] == ord('%') and s == 'Read':
+            
+            #valid message
+            temp = temp[2:-1]
+            # print(temp)
+            updateRead(temp)
+
+# window.mainloop()
 
 # read_area = tk.Label(window, textvariable=btn_text, font=("Calibri", 12))
 # read_area.pack(side="top", fill=tk.BOTH, pady=10)
@@ -97,7 +135,7 @@ btn.pack(fill=tk.X)
 
 
 
-# labelframe = tk.LabelFrame(window, text=" 2.) Enter Coordinates for Tag Below (If Required)")
+# labelframe = tk.LabelFrame(window, text=" 2.) Enter Coordinates for Tag Below (If Requi   red)")
 # labelframe.pack(fill=tk.X, pady=10)
  
 # x_label = tk.Label(labelframe, text="X:")
@@ -108,19 +146,18 @@ btn.pack(fill=tk.X)
 # y_label.pack(side="left", padx=5, pady=10)
 # y_entry = tk.Entry(labelframe, width=10)
 # y_entry.pack(side="left", padx=5, pady=10)
-window.mainloop()
 
-# ser = serial.Serial('COM12', 115200, timeout=0)
-# print(ser.name)
-# # for x in range(100):
-# #     temp = ser.read(100)
-# #     if temp != b'':
-# #         print(temp)
-# #     time.sleep(0.1)
-# # print('Writing')
-# # ser.write(b'T')
-# # ser.flush()
-# # print('Just flushed')
+
+
+# for x in range(100):
+#     temp = ser.read(100)
+#     if temp != b'':
+#         print(temp)
+#     time.sleep(0.1)
+# print('Writing')
+# ser.write(b'T')
+# ser.flush()
+# print('Just flushed')
 # iter = 0
 # node = 2
 # x = 1
