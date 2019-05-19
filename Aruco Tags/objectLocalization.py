@@ -3,6 +3,8 @@ import cv2
 import cv2.aruco as aruco
 import time
 import serial
+import math
+
 
 # ser = serial.Serial('COM4', 115200, timeout=0)
 # print(ser.name)
@@ -34,6 +36,13 @@ def scalePoint(fourCorners, point):
     x = (point[0] - fourCorners[0][0]) * xScale
     y = (point[1]  - fourCorners[0][1]) * yScale
     return [x,y]
+
+#Function used to convert the angle given by the Aruco library to a value between 0 and 2 pi radians
+def convertAtoRadians(a):
+    if (a < 0):
+        a = (2 * math.pi) + a
+    return a
+
 
 
 #Holds the values of the four corners of the robotic environment. Goes clockwise starting with the top left corner
@@ -76,6 +85,7 @@ while (vc.isOpened()):
             if ids[i] == 5:
                 image = aruco.drawAxis(image,mtx,dist,rvec[i],tvec[i],0.1)
                 a = rvec[i][0][1]
+                a = convertAtoRadians(a)
                 # rotations.append(rvec[i][0][1])
                 # print(rvec[i])
 
@@ -153,3 +163,4 @@ cv2.destroyAllWindows()
 
 #NOTE: Scaling in X-direction is pretty inaccurate. This needs to be scaled appropriately with the y value
 # Since the values of x of the bottom corners are wider than the x values at the top of the board.
+

@@ -3,6 +3,7 @@ import cv2
 import cv2.aruco as aruco
 import time
 import serial
+import objectLocalization
 
 ser = serial.Serial('COM4', 115200, timeout=0)
 print(ser.name)
@@ -76,6 +77,7 @@ while (vc.isOpened()):
             if ids[i] == 5:
                 image = aruco.drawAxis(image,mtx,dist,rvec[i],tvec[i],0.1)
                 a = rvec[i][0][1]
+                a = objectLocalization.convertAtoRadians(a)
                 # rotations.append(rvec[i][0][1])
                 # print(rvec[i])
 
