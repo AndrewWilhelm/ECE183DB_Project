@@ -46,10 +46,7 @@ byte trailerBlock   = 11;
 
 // so technically the first 32 bits need to be the same for multiple reading pipes, but here it looks like they did the opposite
 // We think that the arduino may have little/big endian that makes this true (we're assumming the library example did it correctly)
-byte addresses[][6] = {"0Node", "1Node", "2Node", "3Node"};
-
-// Used to control whether this node is sending or receiving
-bool role = 0;
+byte addresses[][6] = {"0Node", "1Node", "2Node", "3Node", "4Node", "5Node", "6Node"};
 
 const uint8_t data_length = 255;
 byte data[data_length];
@@ -142,6 +139,19 @@ void loop() {
     } else {
       Serial.println(temp);
       LED_ON;
+
+      // send a message that you read an RFID tag
+      radio.stopListening();
+      radio.openWritingPipe(addresses[radioNumber + 3]);
+      temp.getBytes((unsigned char*)message, message_length);
+      if (!radio.write( &message, sizeof(char) * temp.length() )) {
+        Serial.println("Couldn't send message:");
+        Serial.print(temp);
+      } else {
+        Serial.println(F("Sent: "));
+        Serial.print(temp);
+      }
+      radio.startListening();
     }
 
   }
