@@ -43,6 +43,15 @@ def convertAtoRadians(a):
         a = (2 * math.pi) + a
     return a
 
+#Function used to convert the aruco tag x and y coordinates to the robot's x y location.
+#This involves some linear scaling (derived experimentally)
+#Returns: a tuple (robotX,robotY)
+def convertToRobotLocation(arucoX,arucoY):
+    robotY = -(0.005 * math.pow(arucoY,2)) + (1.3071*arucoY) + 15.607
+    slopeX = (-0.0041*robotY) + 0.8914
+    interceptX = (0.2417 * robotY) + 6.1792
+    robotX = (arucoX * slopeX) + interceptX
+    return(robotX,robotY)
 
 
 #Holds the values of the four corners of the robotic environment. Goes clockwise starting with the top left corner
@@ -116,6 +125,7 @@ while (vc.isOpened()):
                 if (len(fourCorners[0]) > 0 and len(fourCorners[1]) > 0 and len(fourCorners[2]) > 0 and len(fourCorners[3]) > 0):
                     #print("Scaled: " + str(scalePoint(fourCorners, getRectMid(corners[i][0]))))
                     [x,y] = scalePoint(fourCorners, getRectMid(corners[i][0]))
+                    [x,y] = convertToRobotLocation(x,y)
 
     # print(corners)
     # print(ids)
