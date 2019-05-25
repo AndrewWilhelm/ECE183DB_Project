@@ -75,6 +75,12 @@ def clicked():
     message = "Current Mode: "
     #print(btn_text.get())
     if btn_text.get() == message + "Read":
+        state = "Clear"
+        write_text.configure(state="disabled")
+        code = 'c'
+        ser.write(str.encode(code))
+        ser.flush()
+    elif btn_text.get() == message + "Clear":
         state = "Write"
         write_text.configure(state="normal")
     else:
