@@ -30,7 +30,8 @@ byte addresses[][6] = {"0Node", "1Node", "2Node", "3Node", "4Node", "5Node", "6N
 void setup() {
   Serial.begin(115200);
   Serial.println(F("Setting up the transmitter"));
-
+  Serial.setTimeout(5);
+  
   radio.begin();
 
   // Set the PA Level low to prevent power supply related issues since this is a

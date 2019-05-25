@@ -25,6 +25,19 @@
 #  define LED_ON digitalWrite(LED_PIN, LOW)
 #  define LED_OFF digitalWrite(LED_PIN, HIGH)
 
+int PWMA=D1;//Right side 
+int PWMB=D2;//Left side 
+int DA=D3;//Right reverse 
+int DB=D4;//Left reverse 
+
+
+void turnRight();
+void turnLeft();
+void moveF();
+void stopMove();
+const int rightPWM = 900;//The analogWrite uses values from 0 to 1024
+const int leftPWM = 900;
+
 /****************** User Config ***************************/
 
 // Can't choose 0 (that's the transmitter). Valid values are 1-3
@@ -99,6 +112,12 @@ void setup() {
   LED_OFF;
   Serial.print("Ready to go. I am node number: ");
   Serial.println(radioNumber);
+
+  pinMode(PWMA, OUTPUT); 
+  pinMode(PWMB, OUTPUT); 
+  pinMode(DA, OUTPUT); 
+  pinMode(DB, OUTPUT); 
+  Serial.println("Finished setting up motors");
 }
 
 void loop() {
@@ -111,6 +130,29 @@ void loop() {
 
     Serial.print("Got the message: ");
     Serial.println(message);
+
+    if (message[0] == 'r') {
+      turnRight();
+    }
+    else if (message[0] == 'l') {
+      turnLeft();
+    }
+    else if (message[0] == 'f') {
+      char val1 = message[1];
+      char val2 = message[2];
+      char val3 = message[3];
+      int v1 = (int) val1 - ((int) '0');
+      int v2 = (int) val2 - ((int) '0');
+      int v3 = (int) val3 - ((int) '0');
+      int pwmNumber = v1* 100 + v2*10 + v3;
+      char val4 = '0';
+      if (val1 == '1') {
+        val4 = message[4];
+        int v4 = (int) val4 - ((int) '0');
+        pwmNumber = pwmNumber*10 + v4;
+      }
+      moveF(pwmNumber);
+    }
 
     // extract the position data
     // TODO: actually extract the position data
@@ -482,3 +524,35 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
 
   return toReturn;
 } // End PICC_DumpMifareClassicSectorToSerial()
+
+/*Motor drivers*/
+void moveF(int pwmValue){
+    analogWrite(PWMA, pwmValue);//right motor 
+    digitalWrite(DA, HIGH); 
+      
+    analogWrite(PWMB, pwmValue); //left motor
+    digitalWrite(DB, LOW);  
+}
+
+void turnRight() {
+    analogWrite(PWMA, rightPWM); 
+    digitalWrite(DA, LOW);//go in reverse 
+      
+    analogWrite(PWMB, leftPWM); 
+    digitalWrite(DB, LOW); 
+}
+
+ void turnLeft() {
+    analogWrite(PWMA, rightPWM); 
+    digitalWrite(DA, HIGH); 
+      
+    analogWrite(PWMB, leftPWM); 
+    digitalWrite(DB, HIGH);//go in reverse 
+}
+
+void stopMove() {
+    analogWrite(PWMA, 0); 
+    digitalWrite(DA, HIGH); 
+      
+    analogWrite(PWMB, 0); 
+    digitalWrite(DB, LOW);}

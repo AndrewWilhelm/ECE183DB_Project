@@ -4,6 +4,11 @@ import cv2.aruco as aruco
 import time
 import serial
 import objectLocalization
+import sys
+sys.path.insert(0, '../Control/')
+import robotControl
+
+targetState = (50,50,0)
 
 ser = serial.Serial('COM4', 115200, timeout=0)
 print(ser.name)
@@ -56,7 +61,7 @@ with np.load("sample_images.npz") as data:
 aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
 parameters = aruco.DetectorParameters_create()
 iter = 0
-node = 2
+node = 1 
 x = ''
 y = ''
 a = ''
@@ -100,6 +105,7 @@ while (vc.isOpened()):
                 if (len(fourCorners[0]) > 0 and len(fourCorners[1]) > 0 and len(fourCorners[2]) > 0 and len(fourCorners[3]) > 0):
                     #print("Scaled: " + str(scalePoint(fourCorners, getRectMid(corners[i][0]))))
                     [x,y] = scalePoint(fourCorners, getRectMid(corners[i][0]))
+                    [x,y] = objectLocalization.convertToRobotLocation(x,y)
 
     # print(corners)
     # print(ids)
@@ -118,23 +124,31 @@ while (vc.isOpened()):
         # exit on ESC
         break
 
-    temp = ser.read(1000)
-    if temp != b'':
-        if temp == b'q' or temp == 'Q':
-            ser.close()
-            break
-        print(temp)
+
+    # temp = ser.read(1000)
+    # if temp != b'':
+    #     if temp == b'q' or temp == 'Q':
+    #         ser.close()
+    #         break
+    #     print(temp)
     time.sleep(0.1)
     if iter % 10 == 0:
-        sx = str(x)
-        sy = str(y)
-        sa = str(a)
-        message = str(node) + str(' x:') + sx[0:7] + ' y:' + sy[0:7] + ' a:' + sa[0:7]
-        ser.write(str.encode(message))
-        ser.flush()
+        # sx = str(x)
+        # sy = str(y)
+        # sa = str(a)
+        # message = str(node) + str(' x:') + sx[0:7] + ' y:' + sy[0:7] + ' a:' + sa[0:7]
+        print(fourCorners)
+        if (x != '' and y != '' and a != ''):
+            message = robotControl.prepareControlMessage((x,y,a),targetState)
+            message = str(node) + " " + str(message)
+            ser.write(str.encode(message))
+            ser.flush()
         # print("Just told the transmitter to send")
         # print(b'2-x:1y:1a:1')
     iter = iter + 1
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
+message = "1 f0\r\n" #preappend the robot node number
+ser.write(str.encode(message))
+ser.close()

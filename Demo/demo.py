@@ -3,11 +3,20 @@ import cv2
 import cv2.aruco as aruco
 import time
 import serial
+import sys
+import math
 sys.path.insert(0, '../Aruco Tags/')
 import objectLocalization
 sys.path.insert(0, '../Control/')
 import robotControl
 
+#Checks to see if angle 1 is within range of angles 2.
+#angles are in radians and the range is a double radian
+#Returns: True if angle1 within range of angle 2. False otherwise
+def withinRange(angle1,angle2,range):
+    if abs(angle2 - angle1) < range or abs(angle2 - angle1) > 2 * math.pi - range : #Make sure the angle doesn't flip an unreasonable amount
+        return True
+    return False
 
 def main():
 
@@ -39,6 +48,8 @@ def main():
     x = ''
     y = ''
     a = ''
+    initialized = False
+    initialxya = []
     while (vc.isOpened()):
         ret,frame = vc.read()
         image = frame
@@ -72,7 +83,9 @@ def main():
                 elif ids[i] == 5:
                     if (len(fourCorners[0]) > 0 and len(fourCorners[1]) > 0 and len(fourCorners[2]) > 0 and len(fourCorners[3]) > 0):
                         [x,y] = objectLocalization.scalePoint(fourCorners, objectLocalization.getRectMid(corners[i][0]))
+                        [x,y] = objectLocalization.convertToRobotLocation(x,y)
 
+        # print(fourCorners)
         # print(corners)
         # print(ids)
 
@@ -90,29 +103,80 @@ def main():
             # exit on ESC
             break
 
+        
         temp = ser.read(1000)
+
         if temp != b'':
             if temp == b'q' or temp == 'Q':
                 ser.close()
                 break
             print(temp)
         # time.sleep(0.1)
-        message = robotControl.prepareControlMessage((x,y,a),targetState)
-        ser.write(str.encode(message))
-        ser.flush()
-        # if iter % 10 == 0:
-            # sx = str(x)
-            # sy = str(y)
-            # sa = str(a)
-            # message = str(node) + str(' x:') + sx[0:7] + ' y:' + sy[0:7] + ' a:' + sa[0:7]
-            # ser.write(str.encode(message))
-            # ser.flush()
-            # print("Just told the transmitter to send")
-            # print(b'2-x:1y:1a:1')
-        # iter = iter + 1
+        # print(x == '')
+        # print(y == '')
+        # print(a)
+        # time.sleep(0.05)
+        if (x != '' and y != '' and a != ''):
+            # print("x: " + str(x))
+            # print("y: " + str(y))
+            if (len(initialxya) < 10): #looking to find theaverage of the first several measurements to get an accurate starting point
+                initialxya.append((x,y,a))
+
+            else:
+                if not initialized:
+                    avex = 0
+                    avey = 0
+                    avea = 0
+                    #NOTE: Possible bug could occur if the robot is aligned along 0 degrees since this could fluctuate
+                    #between 0 and 2 pi for values (resulting in an average of pi, the exact oppposite direction)
+                    for i in range(10):
+                        avex = avex + initialxya[i][0]
+                        avey = avey + initialxya[i][1]
+                        avea = avea + initialxya[i][2]
+                    avex = avex/len(initialxya)
+                    avey = avey/len(initialxya)
+                    avea = avea/len(initialxya)
+                    prevxya = (avex,avey,avea)
+                    prevxya2 = (avex,avey,avea)
+                    initialized = True
+                    # previouslyMissed = False
+                    # falsePrev = prevxya
+                else:
+                    # if withinRange(a,prevxya2[2], math.pi * 1/ 2) or (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed): #Make sure the angle doesn't flip an unreasonable amount
+                    #     if withinRange(a,prevxya2[2], math.pi * 1/ 2) or (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed): #Make sure the angle doesn't flip an unreasonable amount
+                    if withinRange(a,prevxya2[2], math.pi * 3/ 4): #Make sure the angle doesn't flip an unreasonable amount
+                        if withinRange(a,prevxya[2], math.pi * 1/2): #Make sure the angle doesn't flip an unreasonable amount
+                            message = robotControl.prepareControlMessage((x,y,a),targetState)
+                            message = "1 " + str(message) + '\r\n' #preappend the robot node number
+                            ser.write(str.encode(message))
+                            print(message)
+                            ser.flush()
+                            # if (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed):
+                            #     prevxya2 = falsePrev
+                            # else:
+                                # prevxya2 = prevxya
+                            prevxya2 = prevxya
+                            prevxya = (x,y,a)
+                            # ser.close()
+                            # time.sleep(0.1)
+                            # print("Just flushed")
+                    else:
+                        print("MISSED IT")
+                        print(prevxya)
+                        print(prevxya2)
+                        print(x)
+                        print(y)
+                        print(a)
+                        # falsePrev = (x,y,a)
+                        # previouslyMissed = True
+
+
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+    message = "1 f0\r\n" #preappend the robot node number
+    ser.write(str.encode(message))
+    ser.close()
 
 
 if __name__ == '__main__':

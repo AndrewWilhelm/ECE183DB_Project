@@ -1,6 +1,5 @@
 import math
 import time
-import serial
 import sys
 
 # sys.path.append('../Aruco Tags/')
@@ -10,7 +9,8 @@ import objectLocalization
 #Returns "right" or "left" if necessary to turn right or left.
 #Otherwise returns an empty string
 def angleCheck(currentAngle, targetAngle):
-	if abs(currentAngle - targetAngle) > math.pi/8 and abs(currentAngle - targetAngle) < 2 * math.pi - math.pi/8:
+	threshold = math.pi * 2 / 8
+	if abs(currentAngle - targetAngle) > threshold and abs(currentAngle - targetAngle) < 2 * math.pi - threshold:
 		#Need to adjust current angle - not on the edge of 0 and 2 pi
 		diff = currentAngle - targetAngle
 		turnOpposite = False
@@ -26,7 +26,9 @@ def angleCheck(currentAngle, targetAngle):
 
 #Verify that the targetPoint is not within the xy margin from the currentpoint
 def withinXYMargin(currentPoint,targetPoint):
-	margin = 5
+	margin = 3
+	# print(currentPoint)
+	# print(targetPoint)
 	distance = math.sqrt(math.pow(currentPoint[1] - targetPoint[1],2) + math.pow(currentPoint[0] - targetPoint[0],2))
 	if  distance < margin:
 		return True
@@ -55,6 +57,8 @@ def xyCheck(currentPoint,targetPoint):
 #Input: currentState and targetState, both of which are tuples of the form (x,y,angle)
 #Output: The control message (as a string). Will return an empty string if the target and current state are the same
 def prepareControlMessage(currentState,targetState):
+	debug = True
+
 	if withinXYMargin(currentState,targetState) == True:
 		#This is the unlikely case where the robot is already at the x y point that it needs to be at. Therefore, it doesn't move
 		return "f0"
@@ -71,10 +75,16 @@ def prepareControlMessage(currentState,targetState):
 		else:
 			turningAngle = ((3 * math.pi / 2) + angleTan) 
 
-	print(turningAngle)
+	# print(turningAngle)
 	message = angleCheck(currentState[2],turningAngle)
 	if message == "":
 		message = xyCheck((currentState[0],currentState[1]),(targetState[0],targetState[1]))
+
+	if debug:
+		print("Current State: " + str(currentState))
+		print( "Target State: " + str(targetState))
+		print ("Message: " + str(message))
+
 	return message
 
 def main():
