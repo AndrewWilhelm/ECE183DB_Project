@@ -73,6 +73,13 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance.
 
 MFRC522::MIFARE_Key key;
 
+// variables for the led-sequences
+bool isFlashing = false;
+int num_of_flashes = 0;
+int max_num_of_flashes = 1;
+unsigned long time_per_flash_cycle = 0;
+unsigned long start_time = 0;
+
 String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer to Uid struct returned from a successful PICC_Select().
     MFRC522::MIFARE_Key *key,  ///< Key A for the sector.
     byte sector     ///< The sector to dump, 0..39.
@@ -121,68 +128,16 @@ void setup() {
   LED_OFF;
   pinMode(BUTTON_PIN, INPUT);
   Serial.println("Receiver is ready");
+  startFlashSequence(2, 500);
 
 }
 
 void loop() {
-  //Serial.println("Looping");
 
-  /****************** Pong Back Role ***************************/
-
-
-  //    unsigned long got_time;
-
-
-//  if ( radio.available()) {
-//    // Variable for the received timestamp
-//    //      while (radio.available()) {                                   // While there is data ready
-//    //        radio.read( &got_time, sizeof(unsigned long) );             // Get the payload
-//    //      }
-//    while (radio.available()) {                                   // While there is data ready
-//      radio.read( &message, message_length * sizeof(char) );             // Get the payload
-//    }
-//
-//    radio.stopListening();                                        // First, stop listening so we can talk
-//    //      radio.write( &got_time, sizeof(unsigned long) );              // Send the final one back.
-//    radio.write( &message, message_length * sizeof(char) );              // Send the final one back.
-//    radio.startListening();                                       // Now, resume listening so we catch the next packets.
-//    Serial.print(F("Sent response "));
-//    Serial.println(message);
-//    //      Serial.println(got_time);
-//    Serial.print("Got the message: ");
-//    Serial.println(message);
-//    //      Serial.print("And I am node number ");
-//    //      Serial.println(radioNumber);
-//
-//    // check if it's a read or write message
-//    // message will either be "r" or "w XXX" where XXX is the data to write
-//    if (message[0] == 'r') {
-//      // put into read mode
-//      Serial.println("Put into read mode");
-//      currentMode = READ;
-//    } else if (message[0] == 'w') {
-//      //put into write mode and set the message to write
-//      Serial.println("Put into write mode");
-//      data_string = String(message);
-//      data_string = data_string.substring(2, data_string.length());// just get the data to write
-//      //        data_string.replace(" ", "");
-//      //        data_string.replace("\n", "");
-//      Serial.print("Will write: ");
-//      Serial.println(data_string);
-//      currentMode = WRITE;
-//    } else if (message[0] == 'c') {
-//      //put into clear mode
-//      Serial.println("Put into clear mode");
-//      currentMode = CLEAR;
-//      data_string = "00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00";
-//    }
-//  }
+  updateFlashSequence();
 
   if ( radio.available()) {
-    // Variable for the received timestamp
-    //      while (radio.available()) {                                   // While there is data ready
-    //        radio.read( &got_time, sizeof(unsigned long) );             // Get the payload
-    //      }
+
     PACKET data;
     while (radio.available()) {                                   // While there is data ready
       radio.read( &data, sizeof(data) );             // Get the payload
@@ -208,6 +163,7 @@ void loop() {
       // put into read mode
       Serial.println("Put into read mode");
       currentMode = READ;
+      startFlashSequence(2, 500);
     } else if (data.packet.message == 'w') {
       //put into write mode and set the message to write
       Serial.println("Put into write mode");
@@ -216,11 +172,13 @@ void loop() {
       Serial.print("Will write: ");
       Serial.println(data_string);
       currentMode = WRITE;
+      startFlashSequence(4, 200);
     } else if (data.packet.message == 'c') {
       //put into clear mode
       Serial.println("Put into clear mode");
       currentMode = CLEAR;
       data_string = "00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00";
+      startFlashSequence(7, 100);
     }
 
   }
@@ -311,14 +269,7 @@ void loop() {
       Serial.println(firstBlockData.packet.message);
       
       radio.stopListening();                                        // First, stop listening so we can talk
-//      if (!radio.write( &data, sizeof(char) * temp.length() )) {
-//        Serial.println("Couldn't send message:");
-//        Serial.print(temp);
-//        Serial.println(" Is the receiver on?");
-//      } else {
-//        Serial.println(F("Sent: "));
-//        Serial.println(temp);
-//      }
+
       if (!radio.write( &firstBlockData, sizeof(firstBlockData) )) {
         Serial.println("Couldn't send the data:");
         Serial.println(" Is the receiver on?");
@@ -355,8 +306,6 @@ void loop() {
         for (int k = 0; k < sizeof(lastBlock); k++) { // for each nibble
           buffer[k] = (byte)strtol(end_ptr, &end_ptr, 16);
         }
-        //        Serial.print("Trying to write the buffer: ");
-        //        Serial.println(String(buffer));
 
         // Write data to the block
         //      Serial.print(F("Writing data into block ")); Serial.print(blockAddr);
@@ -419,25 +368,6 @@ void loop() {
     LED_OFF;
     haveWrittenOrReadWhilePressed = false;
   }
-
-
-  /****************** Change Roles via Serial Commands ***************************/
-
-  //  if ( Serial.available() )
-  //  {
-  //    char c = toupper(Serial.read());
-  //    if ( c == 'T' && role == 0 ){
-  //      Serial.println(F("*** CHANGING TO TRANSMIT ROLE -- PRESS 'R' TO SWITCH BACK"));
-  //      role = 1;                  // Become the primary transmitter (ping out)
-  //
-  //   }else
-  //    if ( c == 'R' && role == 1 ){
-  //      Serial.println(F("*** CHANGING TO RECEIVE ROLE -- PRESS 'T' TO SWITCH BACK"));
-  //       role = 0;                // Become the primary receiver (pong back)
-  //       radio.startListening();
-  //
-  //    }
-  //  }
 
 } // Loop
 
@@ -508,29 +438,7 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
   invertedError = false;  // Avoid "unused variable" warning.
   for (int8_t blockOffset = no_of_blocks - 1; blockOffset >= 0; blockOffset--) {
     blockAddr = firstBlock + blockOffset;
-    // Sector number - only on first line
-    //    if (isSectorTrailer) {
-    ////      if(sector < 10)
-    ////        Serial.print(F("   ")); // Pad with spaces
-    ////      else
-    ////        Serial.print(F("  ")); // Pad with spaces
-    ////      Serial.print(sector);
-    ////      Serial.print(F("   "));
-    //    }
-    //    else {
-    //      Serial.print(F("       "));
-    //    }
-    // Block number
-    //    if(blockAddr < 10)
-    //      Serial.print(F("   ")); // Pad with spaces
-    //    else {
-    //      if(blockAddr < 100)
-    //        Serial.print(F("  ")); // Pad with spaces
-    //      else
-    //        Serial.print(F(" ")); // Pad with spaces
-    //    }
-    //    Serial.print(blockAddr);
-    //    Serial.print(F("  "));
+    
     // Establish encrypted communications before reading the first block
     if (isSectorTrailer) {
       status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, firstBlock, key, uid);
@@ -655,10 +563,6 @@ char *float2s(float f, unsigned int digits /*=2*/)
    static char buf[16]; // Buffer to build string representation
    int index = 0;       // Position in buf to copy stuff to
 
-   // For debugging: Uncomment the following line to see what the
-   // function is working on.
-   //Serial.print("In float2s: bytes of f are: ");printBytes(f);
-
    // Handle the sign here:
    if (f < 0.0) {
        buf[index++] = '-'; 
@@ -677,14 +581,11 @@ char *float2s(float f, unsigned int digits /*=2*/)
        strcpy(buf+index, "NAN");
        return buf;
    }
-   
-   //
+  
    // Handle numbers.
-   //
    
    // Six or seven significant decimal digits will have no more than
    // six digits after the decimal point.
-   //
    if (digits > 6) {
        digits = 6;
    }
@@ -752,47 +653,8 @@ char *float2s(float f, unsigned int digits /*=2*/)
 
    return buf;
 } 
-//
-// Handy function to print hex values
-// of the bytes of a float.  Sometimes
-// helps you see why things don't
-// get rounded to the values that you
-// might think they should.
-//
-// You can print the actual byte values
-// and compare with the floating point
-// representation that is shown in a a
-// reference like
-//    [urlhttp://en.wikipedia.org/wiki/Floating_point[/url]
-//
-void printBytes(float f)
-{
-   unsigned char *chpt = (unsigned char *)&f;
-   char buffer[5]; // Big enough to hold each printed byte 0x..\0
-   //
-   // It's little-endian: Get bytes from memory in reverse order
-   // so that they show in "register order."
-   //
-   for (int i = sizeof(f)-1; i >= 0; i--) {
-       sprintf(buffer, "%02x ", (unsigned char)chpt[i]);
-       Serial.print(buffer);
-   }
-   Serial.println();
-}
 
-//
-// Raise 10 to an unsigned integer power,
-// It's used in this program for powers
-// up to 6, so it must have a long return
-// type, since in avr-gcc, an int can't hold
-// 10 to the power 6.
-//
-// Since it's an integer function, negative
-// powers wouldn't make much sense.
-//
-// If you want a more general function for raising
-// an integer to an integer power, you could make 
-// "base" a parameter.
+// Raise 10 to an unsigned integer power
 unsigned long ipow10(unsigned power)
 {
    const unsigned base = 10;
@@ -845,4 +707,30 @@ String swapEndiannessForPacket(String s){
     Serial.println(s);
   }
   return s;
+}
+
+void updateFlashSequence() {
+  if(isFlashing){
+    unsigned long elapsedTime = millis() - start_time; // elapsed time for this cycle
+    if(elapsedTime < time_per_flash_cycle/2) { // first half of cycle were on
+      LED_ON;
+    } else if(elapsedTime < time_per_flash_cycle) {
+      LED_OFF;
+    } else {
+      num_of_flashes += 1;
+      start_time = millis();
+      if(num_of_flashes >= max_num_of_flashes) {
+        isFlashing = false;
+      }
+    }
+  }
+}
+
+void startFlashSequence(int numOfFlashes, unsigned long lengthOfFlashCycle) {
+  isFlashing = true;
+  num_of_flashes = 0;
+  max_num_of_flashes = numOfFlashes;
+  time_per_flash_cycle = lengthOfFlashCycle;
+  start_time = millis();
+  updateFlashSequence();
 }
