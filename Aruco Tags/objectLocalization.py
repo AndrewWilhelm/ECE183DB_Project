@@ -46,9 +46,13 @@ def convertAtoRadians(a):
 #This involves some linear scaling (derived experimentally)
 #Returns: a tuple (robotX,robotY)
 def convertToRobotLocation(arucoX,arucoY):
-    robotY = -(0.005 * math.pow(arucoY,2)) + (1.3071*arucoY) + 15.607
-    slopeX = (-0.0041*robotY) + 0.8914
-    interceptX = (0.2417 * robotY) + 6.1792
+    # robotY = -(0.005 * math.pow(arucoY,2)) + (1.3071*arucoY) + 15.607
+    # slopeX = (-0.0041*robotY) + 0.8914
+    # interceptX = (0.2417 * robotY) + 6.1792
+    # robotX = (arucoX * slopeX) + interceptX
+    robotY = -(0.00496 * math.pow(arucoY,2)) + (1.288*arucoY) + 18.279
+    slopeX = (-0.00394*robotY) + 0.8721
+    interceptX = (0.2195 * robotY) + 7.189
     robotX = (arucoX * slopeX) + interceptX
     return(robotX,robotY)
 
@@ -129,7 +133,7 @@ def main():
 
         # print(corners)
         # print(ids)
-
+        # print(fourCorners)
         # print(corners, ids, rejectedImgPoints)
 
         #NOTE: Two lines below used to draw markers originally

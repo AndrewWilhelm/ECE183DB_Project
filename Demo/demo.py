@@ -66,6 +66,7 @@ def main():
             for i in range(len(ids)):
                 if ids[i] == 5:
                     if rvec[i][0][0] > 0:
+                        # rvec[i][0][0] = -1 * rvec[i][0][0]
                         image = aruco.drawAxis(image,mtx,dist,rvec[i],tvec[i],0.1)
                         a = rvec[i][0][1]
                         # print(rvec[i])
@@ -180,7 +181,7 @@ def main():
                     #     if withinRange(a,prevxya2[2], math.pi * 1/ 2) or (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed): #Make sure the angle doesn't flip an unreasonable amount
                     
                     # print("Target State: " + str(targetState))
-                    print("A: " + str(a))
+                    # print("A: " + str(a))
                     if(True):
                     # if (not withinRange(a,prevxya[2] - math.pi,math.pi*4/8)):
                     # if (withinRange(a,prevxya2[2], math.pi * 3/ 4) and withinRange(a,prevxya[2], math.pi * 2/4)) or (previouslyMissed and withinRange(a,falsePrev[2],math.pi * 1 /8)): #3/4 1/2Make sure the angle doesn't flip an unreasonable amount
