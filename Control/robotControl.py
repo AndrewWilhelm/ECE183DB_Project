@@ -9,7 +9,7 @@ import objectLocalization
 #Returns "right" or "left" if necessary to turn right or left.
 #Otherwise returns an empty string
 def angleCheck(currentAngle, targetAngle):
-	threshold = math.pi * 2 / 8
+	threshold = math.pi * 3 / 16
 	if abs(currentAngle - targetAngle) > threshold and abs(currentAngle - targetAngle) < 2 * math.pi - threshold:
 		#Need to adjust current angle - not on the edge of 0 and 2 pi
 		diff = currentAngle - targetAngle
@@ -26,7 +26,7 @@ def angleCheck(currentAngle, targetAngle):
 
 #Verify that the targetPoint is not within the xy margin from the currentpoint
 def withinXYMargin(currentPoint,targetPoint):
-	margin = 3
+	margin = 2
 	# print(currentPoint)
 	# print(targetPoint)
 	distance = math.sqrt(math.pow(currentPoint[1] - targetPoint[1],2) + math.pow(currentPoint[0] - targetPoint[0],2))
@@ -57,7 +57,7 @@ def xyCheck(currentPoint,targetPoint):
 #Input: currentState and targetState, both of which are tuples of the form (x,y,angle)
 #Output: The control message (as a string). Will return an empty string if the target and current state are the same
 def prepareControlMessage(currentState,targetState):
-	debug = True
+	debug = False
 
 	if withinXYMargin(currentState,targetState) == True:
 		#This is the unlikely case where the robot is already at the x y point that it needs to be at. Therefore, it doesn't move
