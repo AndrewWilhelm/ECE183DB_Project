@@ -15,8 +15,8 @@
 
 #  define LED_PIN D0
 #  define BUTTON_PIN D1
-#  define LED_ON digitalWrite(LED_PIN, LOW)
-#  define LED_OFF digitalWrite(LED_PIN, HIGH)
+#  define LED_ON digitalWrite(LED_PIN, HIGH)
+#  define LED_OFF digitalWrite(LED_PIN, LOW)
 
 /****************** User Config ***************************/
 int radioNumber = 1;
@@ -34,7 +34,10 @@ char message[message_length];
 // We think that the arduino may have little/big endian that makes this true (we're assumming the library example did it correctly)
 byte addresses[][6] = {"0HanH", "1HanH"};
 
-bool isReadMode = true;
+typedef enum Modes{READ, WRITE, CLEAR};
+Modes modes;
+
+bool currentMode = READ;
 bool haveWrittenOrReadWhilePressed = false;
 
 const uint8_t data_length = 255;
@@ -89,6 +92,9 @@ void setup() {
   // Start the radio listening for data
   radio.startListening();
 
+  // set the mrfrc522 to max gain, 0x0111000
+  mfrc522.PCD_SetAntennaGain(0x07<<4);
+
   pinMode(LED_PIN, OUTPUT);
   LED_OFF;
   pinMode(BUTTON_PIN, INPUT);
@@ -131,7 +137,7 @@ void loop() {
     if (message[0] == 'r') {
       // put into read mode
       Serial.println("Put into read mode");
-      isReadMode = true;
+      currentMode = READ;
     } else if (message[0] == 'w') {
       //put into write mode and set the message to write
       Serial.println("Put into write mode");
@@ -141,13 +147,17 @@ void loop() {
       //        data_string.replace("\n", "");
       Serial.print("Will write: ");
       Serial.println(data_string);
-      isReadMode = false;
+      currentMode = WRITE;
+    } else if (message[0] == 'c') {
+      //put into clear mode
+      Serial.println("Put into clear mode");
+      currentMode = CLEAR;
+      data_string = "00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00";
     }
 
   }
 
   if (digitalRead(BUTTON_PIN) == HIGH) {
-    LED_ON;
     if (haveWrittenOrReadWhilePressed) {
       return;
     }
@@ -164,8 +174,8 @@ void loop() {
       return;
 
     // Show some details of the PICC (that is: the tag/card)
-    //      Serial.print(F("Card UID:"));
-    //      dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size);
+          Serial.print(F("Card UID:"));
+          dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size);
     //      Serial.println();
     //      Serial.print(F("PICC type: "));
     MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
@@ -197,13 +207,13 @@ void loop() {
       return;
     }
 
-    if (isReadMode) { //------------------------------------ READ MODE -------------------------------------------
+    if (currentMode == READ) { //------------------------------------ READ MODE -------------------------------------------
 
       // Show the whole sector as it currently is
       Serial.println(F("Current data in sector:"));
       //mfrc522.PICC_DumpMifareClassicSectorToBuffer(&(mfrc522.uid), &key, sector);
       String temp = PICC_DumpMifareClassicSectorToString(&(mfrc522.uid), &key, sector);
-      Serial.println(temp);
+//      Serial.println(temp);
 
       // Halt PICC
       mfrc522.PICC_HaltA();
@@ -230,7 +240,7 @@ void loop() {
       radio.startListening();                                       // Now, resume listening so we catch the next packets.
       Serial.print(F("Sent response "));
       Serial.println((char*)data);
-    } else {
+    } else if(currentMode == WRITE || currentMode == CLEAR){
 
       //------------------------------------------------------- WRITE MODE ------------------------------------------------------------
 
@@ -312,7 +322,10 @@ void loop() {
       // Stop encryption on PCD
       mfrc522.PCD_StopCrypto1();
     }
-    haveWrittenOrReadWhilePressed = true;
+    if(currentMode != CLEAR) { // for clear we want it to keep clearing as long as button is pressed
+      haveWrittenOrReadWhilePressed = true;
+      LED_ON;
+    }
   } else {
     LED_OFF;
     haveWrittenOrReadWhilePressed = false;
