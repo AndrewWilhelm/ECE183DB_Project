@@ -15,8 +15,8 @@
 
 #  define LED_PIN D0
 #  define BUTTON_PIN D1
-#  define LED_ON digitalWrite(LED_PIN, LOW)
-#  define LED_OFF digitalWrite(LED_PIN, HIGH)
+#  define LED_ON digitalWrite(LED_PIN, HIGH)
+#  define LED_OFF digitalWrite(LED_PIN, LOW)
 
 /****************** User Config ***************************/
 int radioNumber = 1;
@@ -34,7 +34,10 @@ char message[message_length];
 // We think that the arduino may have little/big endian that makes this true (we're assumming the library example did it correctly)
 byte addresses[][6] = {"0HanH", "1HanH"};
 
-bool isReadMode = true;
+typedef enum Modes{READ, WRITE, CLEAR};
+Modes modes;
+
+bool currentMode = READ;
 bool haveWrittenOrReadWhilePressed = false;
 
 const uint8_t data_length = 255;
@@ -46,7 +49,15 @@ byte lastBlock[]    = { //00 00 00 00  00 00 FF 07  80 69 FF FF  FF FF FF FF
   0x80, 0x69, 0xFF, 0xFF, //  9, 10, 255, 11,
   0xFF, 0xFF, 0xFF, 0xFF  // 12, 13, 14, 15
 };
+String lastBlockString = "00 00 00 00  00 00 ff 07  80 69";
 byte dataBlock[16];
+
+struct PACKET {
+  uint16_t x;
+  uint16_t y;
+  float a;
+  char message;
+};
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance.
 
@@ -88,6 +99,10 @@ void setup() {
 
   // Start the radio listening for data
   radio.startListening();
+
+  // set the mrfrc522 one less than max gain, 0x0110000
+  // tried to do the max gain, 0x07, but that didn't work with battery, probably because it drew too much current at once
+  mfrc522.PCD_SetAntennaGain(0x06<<4);
 
   pinMode(LED_PIN, OUTPUT);
   LED_OFF;
@@ -131,7 +146,7 @@ void loop() {
     if (message[0] == 'r') {
       // put into read mode
       Serial.println("Put into read mode");
-      isReadMode = true;
+      currentMode = READ;
     } else if (message[0] == 'w') {
       //put into write mode and set the message to write
       Serial.println("Put into write mode");
@@ -141,13 +156,17 @@ void loop() {
       //        data_string.replace("\n", "");
       Serial.print("Will write: ");
       Serial.println(data_string);
-      isReadMode = false;
+      currentMode = WRITE;
+    } else if (message[0] == 'c') {
+      //put into clear mode
+      Serial.println("Put into clear mode");
+      currentMode = CLEAR;
+      data_string = "00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00";
     }
 
   }
 
   if (digitalRead(BUTTON_PIN) == HIGH) {
-    LED_ON;
     if (haveWrittenOrReadWhilePressed) {
       return;
     }
@@ -164,8 +183,8 @@ void loop() {
       return;
 
     // Show some details of the PICC (that is: the tag/card)
-    //      Serial.print(F("Card UID:"));
-    //      dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size);
+          Serial.print(F("Card UID:"));
+          dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size);
     //      Serial.println();
     //      Serial.print(F("PICC type: "));
     MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
@@ -197,19 +216,23 @@ void loop() {
       return;
     }
 
-    if (isReadMode) { //------------------------------------ READ MODE -------------------------------------------
+    if (currentMode == READ) { //------------------------------------ READ MODE -------------------------------------------
 
       // Show the whole sector as it currently is
       Serial.println(F("Current data in sector:"));
       //mfrc522.PICC_DumpMifareClassicSectorToBuffer(&(mfrc522.uid), &key, sector);
       String temp = PICC_DumpMifareClassicSectorToString(&(mfrc522.uid), &key, sector);
-      Serial.println(temp);
+//      Serial.println(temp);
 
       // Halt PICC
       mfrc522.PICC_HaltA();
       // Stop encryption on PCD
       mfrc522.PCD_StopCrypto1();
-
+      if(temp == "") { // if it's an empty string it failed
+        return;
+      } else if(temp == lastBlockString) {
+        return;
+      }
       
       int length_of_message = temp.length();
       temp = temp.substring(temp.lastIndexOf('\n', length_of_message-2)+1, length_of_message); // get the last block (length - 2 to avoid the ending newline)
@@ -230,7 +253,7 @@ void loop() {
       radio.startListening();                                       // Now, resume listening so we catch the next packets.
       Serial.print(F("Sent response "));
       Serial.println((char*)data);
-    } else {
+    } else if(currentMode == WRITE || currentMode == CLEAR){
 
       //------------------------------------------------------- WRITE MODE ------------------------------------------------------------
 
@@ -312,7 +335,10 @@ void loop() {
       // Stop encryption on PCD
       mfrc522.PCD_StopCrypto1();
     }
-    haveWrittenOrReadWhilePressed = true;
+    if(currentMode != CLEAR) { // for clear we want it to keep clearing as long as button is pressed
+      haveWrittenOrReadWhilePressed = true;
+      LED_ON;
+    }
   } else {
     LED_OFF;
     haveWrittenOrReadWhilePressed = false;
@@ -358,6 +384,7 @@ void copy(byte* src, byte* dst, int len) {
    Dumps memory contents of a sector of a MIFARE Classic PICC.
    Uses PCD_Authenticate(), MIFARE_Read() and PCD_StopCrypto1.
    Always uses PICC_CMD_MF_AUTH_KEY_A because only Key A can always read the sector trailer access bits.
+   Returns an empty string if it fails
 */
 String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer to Uid struct returned from a successful PICC_Select().
     MFRC522::MIFARE_Key *key,  ///< Key A for the sector.
@@ -394,7 +421,7 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
     firstBlock = 128 + (sector - 32) * no_of_blocks;
   }
   else { // Illegal input, no MIFARE Classic PICC has more than 40 sectors.
-    return toReturn;
+    return "";
   }
 
   // Dump blocks, highest address first.
@@ -434,7 +461,7 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
       if (status != MFRC522::STATUS_OK) {
         Serial.print(F("PCD_Authenticate() failed: "));
         Serial.println(MFRC522::GetStatusCodeName(status));
-        return toReturn;
+        return "";
       }
     }
     // Read block
@@ -443,7 +470,7 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
     if (status != MFRC522::STATUS_OK) {
       Serial.print(F("MIFARE_Read() failed: "));
       Serial.println(MFRC522::GetStatusCodeName(status));
-      continue;
+      return "";
     }
     // Dump data
     for (byte index = 0; index < 16; index++) {
