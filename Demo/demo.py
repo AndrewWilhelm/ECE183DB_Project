@@ -65,9 +65,11 @@ def main():
         if ids is not None:
             for i in range(len(ids)):
                 if ids[i] == 5:
-                    image = aruco.drawAxis(image,mtx,dist,rvec[i],tvec[i],0.1)
-                    a = rvec[i][0][1]
-                    a = objectLocalization.convertAtoRadians(a)
+                    if rvec[i][0][0] > 0:
+                        image = aruco.drawAxis(image,mtx,dist,rvec[i],tvec[i],0.1)
+                        a = rvec[i][0][1]
+                        # print(rvec[i])
+                        a = objectLocalization.convertAtoRadians(a)
                 # if ids[i] < 5:
                 #     print("Drawing ID: " + str(ids[i]) )
                 #     print("before")
@@ -178,9 +180,9 @@ def main():
                     #     if withinRange(a,prevxya2[2], math.pi * 1/ 2) or (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed): #Make sure the angle doesn't flip an unreasonable amount
                     
                     # print("Target State: " + str(targetState))
-                    # if(True):
                     print("A: " + str(a))
-                    if (not withinRange(a,prevxya[2] - math.pi,math.pi*4/8)):
+                    if(True):
+                    # if (not withinRange(a,prevxya[2] - math.pi,math.pi*4/8)):
                     # if (withinRange(a,prevxya2[2], math.pi * 3/ 4) and withinRange(a,prevxya[2], math.pi * 2/4)) or (previouslyMissed and withinRange(a,falsePrev[2],math.pi * 1 /8)): #3/4 1/2Make sure the angle doesn't flip an unreasonable amount
                         message = robotControl.prepareControlMessage((x,y,a),targetState)
                         message = str(robotNode) + " " + str(message) + '\r\n' #preappend the robot node number
