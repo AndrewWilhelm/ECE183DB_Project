@@ -128,10 +128,6 @@ void loop() {
       while (radio.available(&nodeNum)) {                                   // While there is data ready
         radio.read( &message, message_length * sizeof(char) );             // Get the payload
       }
-      Serial.print("Got the message: ");
-      Serial.print(message);
-      Serial.print(" from node ");
-      Serial.println(nodeNum);
     }
   }
 

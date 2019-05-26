@@ -23,7 +23,8 @@ def main():
     ser = serial.Serial('COM4', 115200, timeout=0)
     print(ser.name)
 
-    targetState = (50,50,0)
+    targetState = (20,80,0)
+    robotNode = 1
 
     #Holds the values of the four corners of the robotic environment. Goes clockwise starting with the top left corner
     #The ids for the aruco tags for each of the four corners goes from 0 to 3 clockwise, starting with the top left corner
@@ -53,7 +54,6 @@ def main():
     while (vc.isOpened()):
         ret,frame = vc.read()
         image = frame
-        
         # image = cv2.imread("52814747.png")
         # image = cv2.imread("arucoTestImage.png")
 
@@ -68,6 +68,12 @@ def main():
                     image = aruco.drawAxis(image,mtx,dist,rvec[i],tvec[i],0.1)
                     a = rvec[i][0][1]
                     a = objectLocalization.convertAtoRadians(a)
+                # if ids[i] < 5:
+                #     print("Drawing ID: " + str(ids[i]) )
+                #     print("before")
+                #     print(rvec[i])
+                #     image = aruco.drawAxis(image,mtx,dist,rvec[i],tvec[i],0.1)
+                #     print("after")
 
 
         if ids is not None:
@@ -104,13 +110,38 @@ def main():
             break
 
         
+        # iter = 0
+        # while (iter < 5):
         temp = ser.read(1000)
-
+        # temp = ser.readline()
         if temp != b'':
             if temp == b'q' or temp == 'Q':
                 ser.close()
                 break
-            print(temp)
+            # print(temp)
+            # if temp[0] == '$':
+            base = temp.find(b'$')
+            if base > 0:
+                #This means a robot is sending a message back
+                code = temp[base:]
+                sampleCode = "$X XXX XXX X.XXX"
+                if len(code) > len(sampleCode):
+                    code = code[:len(sampleCode)]
+                if len(code) == len(sampleCode): #length
+                    nodeNum = temp[base+1]
+                    xVals = temp[base+3:base+6]
+                    yVals = temp[base+7:base+10]
+                # if not xVals and not yVals:
+                    tempState = (int(xVals),int(yVals),0)
+                    if tempState != (0,0,0):
+                        targetState = tempState 
+                        print("------------- NEW TARGET STATE ----------")
+                        print(targetState)
+                # while(True):
+                #     print(temp)
+                #     print("------------- NEW TARGET STATE ----------")
+                #     print(targetState)
+
         # time.sleep(0.1)
         # print(x == '')
         # print(y == '')
@@ -139,42 +170,49 @@ def main():
                     prevxya = (avex,avey,avea)
                     prevxya2 = (avex,avey,avea)
                     initialized = True
-                    # previouslyMissed = False
-                    # falsePrev = prevxya
+                    print(initialxya)
+                    previouslyMissed = False
+                    falsePrev = prevxya
                 else:
                     # if withinRange(a,prevxya2[2], math.pi * 1/ 2) or (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed): #Make sure the angle doesn't flip an unreasonable amount
                     #     if withinRange(a,prevxya2[2], math.pi * 1/ 2) or (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed): #Make sure the angle doesn't flip an unreasonable amount
-                    if withinRange(a,prevxya2[2], math.pi * 3/ 4): #Make sure the angle doesn't flip an unreasonable amount
-                        if withinRange(a,prevxya[2], math.pi * 1/2): #Make sure the angle doesn't flip an unreasonable amount
-                            message = robotControl.prepareControlMessage((x,y,a),targetState)
-                            message = "1 " + str(message) + '\r\n' #preappend the robot node number
-                            ser.write(str.encode(message))
-                            print(message)
-                            ser.flush()
-                            # if (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed):
-                            #     prevxya2 = falsePrev
-                            # else:
-                                # prevxya2 = prevxya
-                            prevxya2 = prevxya
-                            prevxya = (x,y,a)
-                            # ser.close()
-                            # time.sleep(0.1)
-                            # print("Just flushed")
+                    
+                    # print("Target State: " + str(targetState))
+                    # if(True):
+                    print("A: " + str(a))
+                    if (not withinRange(a,prevxya[2] - math.pi,math.pi*4/8)):
+                    # if (withinRange(a,prevxya2[2], math.pi * 3/ 4) and withinRange(a,prevxya[2], math.pi * 2/4)) or (previouslyMissed and withinRange(a,falsePrev[2],math.pi * 1 /8)): #3/4 1/2Make sure the angle doesn't flip an unreasonable amount
+                        message = robotControl.prepareControlMessage((x,y,a),targetState)
+                        message = str(robotNode) + " " + str(message) + '\r\n' #preappend the robot node number
+                        ser.write(str.encode(message))
+                        # print(message)
+                        ser.flush()
+                        # if (withinRange(a,falsePrev[2],math.pi * 1 /2) and previouslyMissed):
+                        #     prevxya2 = falsePrev
+                        # else:
+                            # prevxya2 = prevxya
+                        prevxya2 = prevxya
+                        prevxya = (x,y,a)
+                        # print(initialxya)
+                        # print((avex,avey,avea))
+                        # ser.close()
+                        # time.sleep(0.1)
+                        # print("Just flushed")
                     else:
-                        print("MISSED IT")
-                        print(prevxya)
-                        print(prevxya2)
-                        print(x)
-                        print(y)
-                        print(a)
-                        # falsePrev = (x,y,a)
-                        # previouslyMissed = True
+                        # print("MISSED IT")
+                        # print(prevxya)
+                        # print(prevxya2)
+                        # print(x)
+                        # print(y)
+                        # print("A: " + str(a))
+                        falsePrev = (x,y,a)
+                        previouslyMissed = True
 
 
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    message = "1 f0\r\n" #preappend the robot node number
+    message = str(robotNode) + " f0\r\n" #preappend the robot node number
     ser.write(str.encode(message))
     ser.close()
 
