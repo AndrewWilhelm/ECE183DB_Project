@@ -9,6 +9,7 @@
 #include <SPI.h>
 #include "RF24.h"
 #include <MFRC522.h>
+#include <stdlib.h>
 
 #define SD2            9
 #define SD3            10
@@ -35,8 +36,8 @@ void turnRight();
 void turnLeft();
 void moveF();
 void stopMove();
-const int rightPWM = 900;//The analogWrite uses values from 0 to 1024
-const int leftPWM = 900;
+const int rightPWM = 850;//The analogWrite uses values from 0 to 1024
+const int leftPWM = 850;
 
 /****************** User Config ***************************/
 
@@ -70,7 +71,13 @@ byte lastBlock[]    = { //00 00 00 00  00 00 FF 07  80 69 FF FF  FF FF FF FF
   0x80, 0x69, 0xFF, 0xFF, //  9, 10, 255, 11,
   0xFF, 0xFF, 0xFF, 0xFF  // 12, 13, 14, 15
 };
-byte dataBlock[16];
+
+struct DATABLOCK {
+  uint16_t x;
+  uint16_t y;
+  float a;
+};
+
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance.
 
@@ -80,7 +87,7 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
     MFRC522::MIFARE_Key *key,  ///< Key A for the sector.
     byte sector     ///< The sector to dump, 0..39.
                                            );
-
+char *float2s(float f, unsigned int digits=2);
 
 void setup() {
   Serial.begin(115200);
@@ -107,6 +114,9 @@ void setup() {
 
   // Start the radio listening for data
   radio.startListening();
+
+  // set the mrfrc522 to max gain, 0x0111000
+  mfrc522.PCD_SetAntennaGain(0x05<<4);
 
   pinMode(LED_PIN, OUTPUT);
   LED_OFF;
@@ -174,7 +184,7 @@ void loop() {
 
   }
 
-  if (mfrc522.PICC_IsNewCardPresent()) {
+  if (RFIDTagIsPresent()) {
     String temp = readRFIDTag();
     if (temp == "") {
 //      Serial.println("Something went wrong");
@@ -182,18 +192,45 @@ void loop() {
       Serial.println(temp);
       LED_ON;
 
+      // parse the data we want
+      String rfidTagData = temp;
+      rfidTagData.replace(" ", "");
+//      String firstBlock = rfidTagData.substring(0, rfidTagData.indexOf('\n')+1);
+//      Serial.print("Data in First Block: ");
+//      Serial.println(rfidTagData);
+      DATABLOCK firstBlockData = parseBlock(rfidTagData);
+      Serial.print("x: ");
+      Serial.println(firstBlockData.x);
+      Serial.print("y: ");
+      Serial.println(firstBlockData.y);
+      Serial.print("a: ");
+      Serial.println(float2s(firstBlockData.a));
+
       // send a message that you read an RFID tag
       radio.stopListening();
       radio.openWritingPipe(addresses[radioNumber + 3]);
-      temp.getBytes((unsigned char*)message, message_length);
-      if (!radio.write( &message, sizeof(char) * temp.length() )) {
+      if (!radio.write( &firstBlockData, sizeof(firstBlockData) )) {
         Serial.println("Couldn't send message:");
-        Serial.print(temp);
+//        Serial.print(temp);
       } else {
-        Serial.println(F("Sent: "));
-        Serial.print(temp);
+        Serial.println(F("Sent the data"));
+//        Serial.print(temp);
       }
       radio.startListening();
+
+//      // send a message that you read an RFID tag
+//      radio.stopListening();
+//      radio.openWritingPipe(addresses[radioNumber + 3]);
+//      temp = "% " + temp; //preappend the % for processing purposes at the transmitter
+//      temp.getBytes((unsigned char*)message, message_length);
+//      if (!radio.write( &message, sizeof(char) * temp.length() )) {
+//        Serial.println("Couldn't send message:");
+//        Serial.print(temp);
+//      } else {
+//        Serial.println(F("Sent: "));
+//        Serial.print(temp);
+//      }
+//      radio.startListening();
     }
 
   }
@@ -282,7 +319,6 @@ String readRFIDTag() {
   temp = temp.substring(temp.lastIndexOf('\n', length_of_message - 2) + 1, length_of_message); // get the last block (length - 2 to avoid the ending newline)
   temp.trim();
   temp.replace("  ", " "); //get rid of extra spaces
-  temp = "% " + temp; //preappend the % for processing purposes at the transmitter
   temp.getBytes(data, message_length);
 
   return temp;
@@ -556,3 +592,194 @@ void stopMove() {
       
     analogWrite(PWMB, 0); 
     digitalWrite(DB, LOW);}
+
+// parses a string of the bytes into a data block. Expects the bytes to be all in one line, no spaces
+DATABLOCK parseBlock(String block) {
+  DATABLOCK toReturn;
+  // first separate each part into smaller substrings
+  int index = 0;
+  String x = block.substring(0, sizeof(toReturn.x) * 2); // multiply by 2 since two hex chars in one byte
+  index += sizeof(toReturn.x) * 2;
+  String y = block.substring(index, index + (sizeof(toReturn.y)* 2));
+  index += sizeof(toReturn.y) * 2;
+  String a = block.substring(index, index + (sizeof(toReturn.a)* 2));
+
+//  Serial.print("String for a is: ");
+//  Serial.println(a);
+
+  // now convert each substring into it's corresponding data value
+  char buffer[16];
+  x.getBytes((byte*)buffer, sizeof(buffer));
+  unsigned long long_x = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+  toReturn.x = (uint16_t) long_x;
+//  Serial.print("Value of x in datablock struct is: ");
+//  Serial.println(toReturn.x);
+  y.getBytes((byte*)buffer, sizeof(buffer));
+  unsigned long long_y = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+  toReturn.y = (uint16_t) long_y;
+  // for a, we need to get the bytes into memory via strtoul, than convert those bytes to a float
+  // couldn't use strtof since it doesn't let you parse the raw bytes
+  // note that sizeof(long)=sizeof(float)=4 bytes
+  a.getBytes((byte*)buffer, sizeof(buffer));
+  unsigned long long_a = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+  memcpy(&toReturn.a, &long_a, sizeof(float));
+  
+//  Serial.print("Value of a in datablock struct is: ");
+//  Serial.println(float2s(toReturn.a));
+
+  return toReturn;
+}
+
+char *float2s(float f, unsigned int digits /*=2*/)
+{
+   static char buf[16]; // Buffer to build string representation
+   int index = 0;       // Position in buf to copy stuff to
+
+   // For debugging: Uncomment the following line to see what the
+   // function is working on.
+   //Serial.print("In float2s: bytes of f are: ");printBytes(f);
+
+   // Handle the sign here:
+   if (f < 0.0) {
+       buf[index++] = '-'; 
+       f = -f;
+   }
+   // From here on, it's magnitude
+
+   // Handle infinities 
+   if (isinf(f)) {
+       strcpy(buf+index, "INF");
+       return buf;
+   }
+   
+   // Handle NaNs
+   if (isnan(f)) {
+       strcpy(buf+index, "NAN");
+       return buf;
+   }
+   
+   //
+   // Handle numbers.
+   //
+   
+   // Six or seven significant decimal digits will have no more than
+   // six digits after the decimal point.
+   //
+   if (digits > 6) {
+       digits = 6;
+   }
+   
+   // "Normalize" into integer part and fractional part
+   int exponent = 0;
+   if (f >= 10) {
+       while (f >= 10) {
+           f /= 10;
+           ++exponent;
+       }
+   }
+   else if ((f > 0) && (f < 1)) {
+       while (f < 1) {
+           f *= 10;
+           --exponent;
+       }
+   }
+
+   //
+   // Now add 0.5 in to the least significant digit that will
+   // be printed.
+
+   //float rounder = 0.5/pow(10, digits);
+   // Use special power-of-integer function instead of the
+   // floating point library function.
+   float rounder = 0.5 / ipow10(digits);
+   f += rounder;
+
+   //
+   // Get the whole number part and the fractional part into integer
+   // data variables.
+   //
+   unsigned intpart = (unsigned)f;
+   unsigned long fracpart  = (unsigned long)((f - intpart) * 1.0e7);
+
+   //
+   // Divide by a power of 10 that zeros out the lower digits
+   // so that the "%0.lu" format will give exactly the required number
+   // of digits.
+   //
+   fracpart /= ipow10(6-digits+1);
+
+   //
+   // Create the format string and use it with sprintf to form
+   // the print string.
+   //
+   char format[16];
+   // If digits > 0, print
+   //    int part decimal point fraction part and exponent.
+
+   if (digits) {
+     
+       sprintf(format, "%%u.%%0%dlu E%%+d", digits);
+       //
+       // To make sure the format is what it is supposed to be, uncomment
+       // the following line.
+       //Serial.print("format: ");Serial.println(format);
+       sprintf(buf+index, format, intpart, fracpart, exponent);
+   }
+   else { // digits == 0; just print the intpart and the exponent
+       sprintf(format, "%%u E%%+d");
+       sprintf(buf+index, format, intpart, exponent);
+   }
+
+   return buf;
+} 
+//
+// Handy function to print hex values
+// of the bytes of a float.  Sometimes
+// helps you see why things don't
+// get rounded to the values that you
+// might think they should.
+//
+// You can print the actual byte values
+// and compare with the floating point
+// representation that is shown in a a
+// reference like
+//    [urlhttp://en.wikipedia.org/wiki/Floating_point[/url]
+//
+void printBytes(float f)
+{
+   unsigned char *chpt = (unsigned char *)&f;
+   char buffer[5]; // Big enough to hold each printed byte 0x..\0
+   //
+   // It's little-endian: Get bytes from memory in reverse order
+   // so that they show in "register order."
+   //
+   for (int i = sizeof(f)-1; i >= 0; i--) {
+       sprintf(buffer, "%02x ", (unsigned char)chpt[i]);
+       Serial.print(buffer);
+   }
+   Serial.println();
+}
+
+//
+// Raise 10 to an unsigned integer power,
+// It's used in this program for powers
+// up to 6, so it must have a long return
+// type, since in avr-gcc, an int can't hold
+// 10 to the power 6.
+//
+// Since it's an integer function, negative
+// powers wouldn't make much sense.
+//
+// If you want a more general function for raising
+// an integer to an integer power, you could make 
+// "base" a parameter.
+unsigned long ipow10(unsigned power)
+{
+   const unsigned base = 10;
+   unsigned long retval = 1;
+
+   for (int i = 0; i < power; i++) {
+       retval *= base;
+   }
+   return retval;
+}
