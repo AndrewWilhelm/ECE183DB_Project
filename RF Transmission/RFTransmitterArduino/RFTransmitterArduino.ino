@@ -138,8 +138,8 @@ void loop() {
 //        radio.read( &message, message_length * sizeof(char) );             // Get the payload
           radio.read( &datablock, sizeof(datablock));
       }
-<<<<<<< HEAD
-=======
+
+
 //      Serial.print("Got the message: ");
 //      Serial.print(message);
 //      Serial.print(" from node ");
@@ -155,7 +155,6 @@ void loop() {
 
       transmitDataBlock(nodeNum, datablock);
       
->>>>>>> ce45de527c63e3d53be08a1cd5a1b7ff1a4aaa7a
     }
   }
 
