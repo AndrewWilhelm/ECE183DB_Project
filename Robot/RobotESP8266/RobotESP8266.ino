@@ -99,6 +99,16 @@ void setup() {
   Serial.println("Radio has begun");
   mfrc522.PCD_Init(); // Init MFRC522 card
   Serial.println("RFID reader intialized");
+  
+  pinMode(A0, INPUT);
+  int result = analogRead(A0);
+  Serial.print("I just read ");
+  Serial.println(result);
+  if(result < 1024/2) {
+    radioNumber = 1;
+  } else {
+    radioNumber = 2;
+  }
 
   // Set the PA Level low to prevent power supply related issues since this is a
   // getting_started sketch, and the likelihood of close proximity of the devices. RF24_PA_MAX is default.
