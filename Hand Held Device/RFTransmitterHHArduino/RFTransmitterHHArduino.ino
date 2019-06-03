@@ -28,15 +28,27 @@ const uint8_t message_length = 255;
 //bool role = 0;
 char message[message_length]; // Note: had elsewhere that this was an unsigned char array
 
-struct PACKET {
-  uint16_t x;
-  uint16_t y;
-  float a;
-  char message;
+struct NODE {
+  uint8_t x = 0;
+  uint8_t y = 0;
+  bool isLeaf = false;
+  bool doesExist = false;
 };
 
-char *float2s(float f, unsigned int digits = 2); \
-void transmitDataBlock(PACKET d);
+struct DATABLOCK {
+  // data about the tag itself
+  uint8_t x = 0;
+  uint8_t y = 0;
+  NODE otherNodes[4];
+};
+
+struct PACKET {
+  char message;
+  DATABLOCK dataBlock;
+};
+
+char *float2s(float f, unsigned int digits = 2);
+void transmitPacket(PACKET* p);
 
 void setup() {
   Serial.begin(115200);
@@ -105,29 +117,25 @@ void loop() {
       //        Serial.println(F("Sent: "));
       //        Serial.print(message_to_send);
       //      }
-      PACKET data;
-      data.message = message_to_send[1];
-      if(data.message != 'r' && data.message != 'w' && data.message != 'c') {
+      PACKET p;
+      DATABLOCK data = p.dataBlock;
+      p.message = message_to_send[1];
+      if(p.message != 'r' && p.message != 'w' && p.message != 'c') {
         Serial.print("Unknown message: ");
-        Serial.println(data.message);
+        Serial.println(p.message);
         return;
       }
-      data = stringToPacket(message_to_send);
+      stringToPacket(message_to_send, &p);
 
-      if (!radio.write( &data, sizeof(data) )) {
+      if (!radio.write( &p, sizeof(p) )) {
         Serial.println("Couldn't send message:");
         Serial.print(message_to_send);
         Serial.println(" Is the receiver on?");
       } else {
         Serial.println(F("Sent: "));
-        Serial.print(message_to_send);
-        Serial.println(data.message);
-        Serial.print("x: ");
-        Serial.println(data.x);
-        Serial.print("y: ");
-        Serial.println(data.y);
-        Serial.print("a: ");
-        Serial.println(float2s(data.a));
+        Serial.println(message_to_send);
+        printDataBlock(p.dataBlock);
+
       }
     } else {
       Serial.println("ERROR: Didn't recognize the following command");
@@ -150,23 +158,25 @@ void loop() {
     //    Serial.print(F("Got the message: "));
     //    Serial.println(message);
     //    }
-    PACKET data;
+    PACKET p;
     while (radio.available()) {                                   // While there is data ready
-      radio.read( &data, sizeof(data) );             // Get the payload
+      radio.read( &p, sizeof(p) );             // Get the payload
     }
-    if (data.message == 'r') {
+    DATABLOCK data = p.dataBlock;
+    if (p.message == 'r') {
       Serial.print("Got the following message: ");
-      Serial.println(data.message);
-      Serial.print("x: ");
-      Serial.println(data.x);
-      Serial.print("y: ");
-      Serial.println(data.y);
-      Serial.print("a: ");
-      Serial.println(float2s(data.a));
-      transmitDataBlock(data);
+//      Serial.println(p.message);
+//      Serial.print("x: ");
+//      Serial.println(data.x);
+//      Serial.print("y: ");
+//      Serial.println(data.y);
+      printDataBlock(data);
+//      Serial.print("a: ");
+//      Serial.println(float2s(data.a));
+      transmitPacket(&p);
     } else {
       Serial.print(F("Got packet with unknown message: "));
-      Serial.println(data.message);
+      Serial.println(p.message);
     }
   }
 
@@ -174,27 +184,62 @@ void loop() {
 } // Loop
 
 // Transmits the message from the node to the computer via serial
-// $message x y a              where x,y are 3 numbers long and a is X.XXX
-void transmitDataBlock(PACKET d) {
+// $nodeNum x y [x1 y1 iL1]...        where x,y are 3 numbers long and iL is either 1 or 0
+// if the node does not exist, it will not transmit it
+void transmitPacket(PACKET* p) {
+  DATABLOCK* d = &((*p).dataBlock);
   Serial.print("$");
-  Serial.print(d.message);
+  Serial.print((*p).message);
   Serial.print(" ");
-  Serial.print(threeLongInteger(d.x));
+  Serial.print(threeLongInteger((*d).x));
   Serial.print(" ");
-  Serial.print(threeLongInteger(d.y));
+  Serial.print(threeLongInteger((*d).y));
   Serial.print(" ");
-  Serial.println(d.a, 3);
+  for(int j = 0; j < 4; j++) {
+    if((*d).otherNodes[j].doesExist) {
+      Serial.print("[");
+      Serial.print(threeLongInteger((*d).otherNodes[j].x));
+      Serial.print(" ");
+      Serial.print(threeLongInteger((*d).otherNodes[j].y));
+      Serial.print(" ");
+      if((*d).otherNodes[j].isLeaf){
+        Serial.print("1");
+      } else {
+        Serial.print("0");
+      }
+      Serial.print("] ");
+    }
+  }
 }
 
 // Preps from the serial line to the handheld device. Assumes string is as below
-// $message x y a              where x,y are 3 numbers long and a is X.XXX
-PACKET stringToPacket(String data) {
-  PACKET packet;
-  packet.message = data[1];
-  packet.x = data.substring(3, 3+3).toInt();
-  packet.y = data.substring(7, 7+3).toInt();
-  packet.a = data.substring(11, 11+5).toFloat();
-  return packet;
+// $message x y [x1 y1 iL1] [x2 y2 iL2]...        where x,y are 3 numbers long and iL is either 1 or 0
+void stringToPacket(String data, PACKET* p) {
+  DATABLOCK* d = &((*p).dataBlock);
+  (*p).message = data[1];
+  (*d).x = (uint8_t) data.substring(3, 3+3).toInt();
+  (*d).y = (uint8_t) data.substring(7, 7+3).toInt();
+  int nodeNum = 0;
+  int index = 11;
+  // this loop assumes index is at the the open bracket
+  while(nodeNum < 4 && (index + 11) < data.length()){ // 11 is the size of [x1 y1 iL1]
+    index += 1; //skip past first open bracket
+    (*d).otherNodes[nodeNum].x = data.substring(index, index+3).toInt();
+    index += 4;
+    (*d).otherNodes[nodeNum].y = data.substring(index, index+3).toInt();
+    index += 4;
+    Serial.print("The char is ");
+    Serial.println(data[index]);
+    if(data[index] == '0'){
+      (*d).otherNodes[nodeNum].isLeaf = false;
+    } else {
+      (*d).otherNodes[nodeNum].isLeaf = true;
+    }
+    (*d).otherNodes[nodeNum].doesExist = true;
+    index += 3; // to get to the next open bracket
+    nodeNum++;
+  }
+//  packet.a = data.substring(11, 11+5).toFloat();
 }
 
 // converts an int to a three char long string
@@ -363,4 +408,27 @@ unsigned long ipow10(unsigned power)
     retval *= base;
   }
   return retval;
+}
+
+void printDataBlock(DATABLOCK &d) {
+  Serial.print("x: ");
+  Serial.println(d.x);
+  Serial.print("y: ");
+  Serial.println(d.y);
+  for(int j = 0; j < 4; j++) {
+    if(d.otherNodes[j].doesExist) {
+      Serial.print("Node ");
+      Serial.println(j);
+      Serial.print("x: ");
+      Serial.println(d.otherNodes[j].x);
+      Serial.print("y: ");
+      Serial.println(d.otherNodes[j].y);
+      Serial.print("isLeaf: ");
+      if(d.otherNodes[j].isLeaf){
+        Serial.println("true");
+      } else {
+        Serial.println("false");
+      }
+    }
+  }
 }
