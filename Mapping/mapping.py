@@ -145,33 +145,119 @@ def getClosestNode(point,edges):
 		if  dist < minDistance:
 			minDistance = dist
 			closestNode = nodeList[index] 
-
 	return closestNode
 
 #Returns the next node that the robot at robotLocation should visit
 #given the graph provided by edges (which need to include isExplored boolean values)
 #Returns: a tuple (x,y) of the next node. None if there is no logical move available
-def getNextMove(edges,robotLocation):
+#Robots are specified a target location (x,y) and an edge that they are travelling on
+#Two robots cannot be on the same edge or travelling towards the same target at any time
+def getNextMove(edges,robotLocation,allRobotTargetLocations=[],robotEdges=[]):
+	minDist = 1000
+	minPath = []
 	for index in range(len(edges)):
 		edge = edges[index]
-	return
+		edgeV1 = (edge[0],edge[1])
+		edgeV2 = (edge[1],edge[0])
+		# print("Comparison:")
+		# print(edgeV1)
+		# print(robotEdges)
+		if edgeV1 in robotEdges or edgeV2 in robotEdges:
+			print("TRIGGERED")
+			print(robotEdges)
+			print(edgeV1)
+			print("end")
+			continue
+		if edge[0] == robotLocation and edge[2] == False and edge[1]:
+			if edge[1] in allRobotTargetLocations:#Another robot just beat it to that node
+				continue
+			edge[2] = True
+			# print("here")
+			# print(robotLocation)
+			# print(allRobotTargetLocations)
+			return edge[1]
+		elif edge[1] == robotLocation and edge[2] == False and edge[0]:
+			if edge[0] in allRobotTargetLocations:#Another robot just beat it to that node
+				continue
+			edge[2] = True
+
+		if edge[2] == False:
+			pathA = findValidPath(robotLocation,edge[0],edges)
+			pathB = findValidPath(robotLocation,edge[1],edges)
+			if pathA != None:
+				if len(pathA) < minDist:
+					# print(pathA)
+					if pathA[0] == robotLocation:
+						edgeToEval = (robotLocation,pathA[1])
+						targetPoint = pathA[1]
+					else:
+						edgeToEval = (robotLocation,pathA[-2])
+						targetPoint = pathA[-2]
+					edgeToEvalV2 = (edgeToEval[1],edgeToEval[0])
+					#Verify no collsions between robots and the target points/edges
+					if edgeToEval not in robotEdges and edgeToEvalV2 not in robotEdges and targetPoint not in allRobotTargetLocations:
+						minPath = pathA
+						minDist = len(pathA)
+			if pathB != None:
+				if len(pathB) < minDist:
+					if pathB[0] == robotLocation:
+						edgeToEval = (robotLocation,pathB[1])
+						targetPoint = pathB[1]
+					else:
+						edgeToEval = (robotLocation,pathB[-2])
+						targetPoint = pathB[-2]
+					edgeToEvalV2 = (edgeToEval[1],edgeToEval[0])
+					#Verify no collsions between robots and the target points/edges
+					if edgeToEval not in robotEdges and edgeToEvalV2 not in robotEdges and targetPoint not in allRobotTargetLocations:
+						minPath = pathB
+						minDist = len(pathB)
+	if len(minPath) > 1:
+		if minPath[0] == robotLocation:
+			return minPath[1]
+		else:
+			return minPath[-2]
+
+	if robotLocation in allRobotTargetLocations:
+		#This robot needs to move since another robot with higher priority wants to move here
+		for index in range(len(edges)):
+			edge = edges[index]
+			edgeV1 = (edge[0],edge[1])
+			edgeV2 = (edge[1],edge[0])
+			print("V1")
+			print(edgeV1)
+			print("V2")
+			print(edgeV2)
+			if edgeV1 not in robotEdges and edgeV2 not in robotEdges:
+				print("-----------------")
+				if edgeV1[0] == robotLocation and edgeV1[1] not in allRobotTargetLocations:
+					return edgeV1[1]
+				elif edgeV1[1] == robotLocation and edgeV1[0] not in allRobotTargetLocations:
+					return edgeV1[0]
+	# print("Default selected")
+	return robotLocation
 
 def main():
-	edge1 = [(50,50), (50,60), True]
-	edge2 = [(50,50), (60,50), True]
-	edge3 = [(60,50), (60,60), False]
+	
+	edge1 = [(50,50), (50,60), False]
+	edge2 = [(50,50), (60,50), False]
+	edge3 = [(60,50), (60,60), True]
 	edge7 = [(60,60), (60,70), False]
-	edge8 = [(60,50), (70,50), False]
-	edge9 = [(70,50), (80,50), False]
-	edge10 = [(80,50), (80,60), False]
-	edge11 = [(80,60), (80,70), False]
-	edge12 = [(70,60), (70,70), False]
-	edge13 = [(80,70), (70,70), False]
-	edge14 = [(70,60), (70,50), False]
-	edge15 = [(20,30), (20,20), False]
-
+	edge8 = [(50,50), (50,40), False]
+	edge9 = [(50,50), (40,50), False]
+	edge10 = [(50,40), (60,40), False]
+	edge11 = [(60,40), (60,50), False]
+	edge12 = [(50,60), (50,70), False]
+	edge13 = [(50,70), (60,70), False]
+	# edge9 = [(50,50), (40,50), False]
+	# edge10 = [(80,50), (80,60), False]
+	# edge11 = [(80,60), (80,70), False]
+	# edge12 = [(70,60), (70,70), False]
+	# edge13 = [(80,70), (70,70), False]
+	# edge14 = [(70,60), (70,50), False]
+	# edge15 = [(20,30), (20,20), False]
+	graph = [edge1, edge2, edge3, edge7, edge8, edge9, edge10, edge11, edge12, edge13]
 	# graph = [edge1[0:2], edge2[0:2], edge3[0:2], edge7[0:2]]
-	graph = [edge1, edge2, edge3, edge7, edge8, edge9, edge10, edge11, edge12, edge13, edge14, edge15]
+	# graph = [edge1, edge2, edge3, edge7, edge8, edge9, edge10, edge11, edge12, edge13, edge14, edge15]
 	# print(graph)
 	# edgeGraph = [convertFromPlotEdgetoEdge(edge1),convertFromPlotEdgetoEdge(edge2),convertFromPlotEdgetoEdge(edge3),convertFromPlotEdgetoEdge(edge7)]
 
@@ -190,24 +276,23 @@ def main():
 	# fig, ax = plt.subplots()
 	x, y = [],[]
 	line = plt.plot(x,y)[0]
-
-
-	#REMOVE THESE 3 LINES BELOW TO GET BACK TO CONTINUOUS UPDATES
-	plotGraph(graph,[(50,50),(60,70)])
-	plt.waitforbuttonpress()
-	return
+	robotLocation1 = (40,50)
+	robotLocation2 = (60,70)
 
 	while True:
-		plotGraph(graph)
+		plotGraph(graph,[robotLocation1,robotLocation2])
 		# plt.draw()
-		time.sleep(0.5)
+		plotGraph(graph,[robotLocation1,robotLocation2])
+		prevLoc1 = robotLocation1
+		prevLoc2 = robotLocation2
+		nextLoc1 = getNextMove(graph,robotLocation1)
+		nextLoc2 = getNextMove(graph,robotLocation2,[nextLoc1],[(prevLoc1,nextLoc1)])
+		print(nextLoc1)
+		print(nextLoc2)
+		robotLocation1 = nextLoc1
+		robotLocation2 = nextLoc2
+		plt.waitforbuttonpress()
 
-
-		plotGraph(graph2)
-		# plt.draw()
-		time.sleep(0.5)
-
-	plt.waitforbuttonpress()
 
 if __name__ == '__main__':
 	main()
