@@ -53,17 +53,30 @@ byte lastBlock[]    = { //00 00 00 00  00 00 FF 07  80 69 FF FF  FF FF FF FF
   0xFF, 0xFF, 0xFF, 0xFF  // 12, 13, 14, 15
 };
 String lastBlockString = "00 00 00 00  00 00 ff 07  80 69";
-byte dataBlock[16];
+//byte dataBlock[16];
 
-struct PACKET_struct {
-  uint16_t x;
-  uint16_t y;
-  float a;
-  char message;
+struct NODE {
+  uint8_t x = 0;
+  uint8_t y = 0;
+  bool isLeaf = false;
+  bool doesExist = false;
 };
-typedef union PACKET{
-  PACKET_struct packet;
-  byte bytes[sizeof(PACKET_struct)];
+
+struct DATABLOCK {
+  // data about the tag itself
+  uint8_t x = 0;
+  uint8_t y = 0;
+  NODE otherNodes[4];
+};
+
+struct PACKET {
+  char message;
+  DATABLOCK dataBlock;
+};
+
+typedef union PACKETUNION{
+  PACKET packet = PACKET();
+  byte bytes[sizeof(PACKET)] ;
 };
 
 // a c string that will hold the 
@@ -138,46 +151,46 @@ void loop() {
 
   if ( radio.available()) {
 
-    PACKET data;
+    PACKETUNION packetUnion;
     while (radio.available()) {                                   // While there is data ready
-      radio.read( &data, sizeof(data) );             // Get the payload
+      radio.read( &packetUnion, sizeof(packetUnion) );             // Get the payload
     }
+    
+    PACKET packet = packetUnion.packet;
+    DATABLOCK data = packet.dataBlock;
 
     radio.startListening();                                       // Now, resume listening so we catch the next packets.
     Serial.print("Got the message: ");
-    Serial.println(data.packet.message);
-    Serial.print("x: ");
-    Serial.println(data.packet.x);
-    Serial.print("y: ");
-    Serial.println(data.packet.y);
-    Serial.print("a: ");
-    Serial.println(float2s(data.packet.a));
-    Serial.print("message: ");
-    Serial.println(data.packet.message);
+    Serial.println(packet.message);
     //      Serial.print("And I am node number ");
     //      Serial.println(radioNumber);
 
     // check if it's a read or write message
     // message will either be "r" or "w XXX" where XXX is the data to write
-    if (data.packet.message == 'r') {
+    if (packet.message == 'r') {
       // put into read mode
       Serial.println("Put into read mode");
       currentMode = READ;
       startFlashSequence(2, 500);
-    } else if (data.packet.message == 'w') {
+    } else if (packet.message == 'w') {
       //put into write mode and set the message to write
       Serial.println("Put into write mode");
-      data_string = String(make_hex_string(std::begin(data.bytes), std::end(data.bytes), true, true).c_str());
+      printDataBlock(data);
+      data_string = String(make_hex_string(std::begin(packetUnion.bytes), std::end(packetUnion.bytes), true, true).c_str());
       data_string = swapEndiannessForPacket(data_string);
       Serial.print("Will write: ");
       Serial.println(data_string);
       currentMode = WRITE;
       startFlashSequence(4, 200);
-    } else if (data.packet.message == 'c') {
+    } else if (packet.message == 'c') {
       //put into clear mode
       Serial.println("Put into clear mode");
       currentMode = CLEAR;
-      data_string = "00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00";
+      //data_string = "00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00";
+      // make it so that the message is zero so that it completely clears the tag
+      packetUnion.packet.message = 0;
+      data_string = String(make_hex_string(std::begin(packetUnion.bytes), std::end(packetUnion.bytes), true, true).c_str());
+      data_string = swapEndiannessForPacket(data_string);
       startFlashSequence(7, 100);
     }
 
@@ -238,9 +251,21 @@ void loop() {
       // Show the whole sector as it currently is
       Serial.println(F("Current data in sector:"));
       //mfrc522.PICC_DumpMifareClassicSectorToBuffer(&(mfrc522.uid), &key, sector);
+      // get the data from the two sectors that we can write to
       String temp = PICC_DumpMifareClassicSectorToString(&(mfrc522.uid), &key, sector);
-//      Serial.println(temp);
+      Serial.println("temp");
+      Serial.println(temp);
 
+      // make it so that instead of 4 separate lines, we have just one long line of strings
+      // we also need to put it in order though as if we get rid of \n, it's backwards
+      String one_line = "";
+      int string_index = 0;
+      for(int j = 0; j < 4; j++) {
+        one_line = temp.substring(string_index, temp.indexOf('\n', string_index)) + one_line;
+        string_index = temp.indexOf('\n', string_index) + 2;
+      }
+      temp = one_line;
+      
       // Halt PICC
       mfrc522.PICC_HaltA();
       // Stop encryption on PCD
@@ -253,20 +278,16 @@ void loop() {
       }
       
       int length_of_message = temp.length();
-      temp = temp.substring(temp.lastIndexOf('\n', length_of_message-2)+1, length_of_message); // get the last block of the string(which is the first block in memory) (length - 2 to avoid the ending newline)
+      //temp = temp.substring(temp.lastIndexOf('\n', length_of_message-2)+1, length_of_message); // get the last block of the string(which is the first block in memory) (length - 2 to avoid the ending newline)
       temp.trim();
 //      temp.replace("  ", " "); //get rid of extra spaces
 //      temp = "% " + temp; //preappend the % for processing purposes at the transmitter
 //      temp.getBytes(data, message_length);
       temp.replace(" ","");
-      PACKET firstBlockData = stringToBlock(temp);
-      Serial.print("x: ");
-      Serial.println(firstBlockData.packet.x);
-      Serial.print("y: ");
-      Serial.println(firstBlockData.packet.y);
-      Serial.print("a: ");
-      Serial.println(float2s(firstBlockData.packet.a));
-      Serial.println(firstBlockData.packet.message);
+      PACKET firstBlockData;
+      blockToPacket(temp, &firstBlockData);
+//      Serial.print("x: ");
+      printDataBlock(firstBlockData.dataBlock);
       
       radio.stopListening();                                        // First, stop listening so we can talk
 
@@ -521,16 +542,34 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
   return toReturn;
 } // End PICC_DumpMifareClassicSectorToSerial()
 
-PACKET stringToBlock(String block) {
-  PACKET toReturn;
-  toReturn.packet.message = 'r';
+// converts string of bytes (with no spaces) to a packet
+void blockToPacket(String block, PACKET *p) {
+  DATABLOCK* toReturn = &((*p).dataBlock);
+  (*p).message = 'r';
   // first separate each part into smaller substrings
-  int index = 0;
-  String x = block.substring(0, sizeof(toReturn.packet.x) * 2); // multiply by 2 since two hex chars in one byte
-  index += sizeof(toReturn.packet.x) * 2;
-  String y = block.substring(index, index + (sizeof(toReturn.packet.y)* 2));
-  index += sizeof(toReturn.packet.y) * 2;
-  String a = block.substring(index, index + (sizeof(toReturn.packet.a)* 2));
+  int index = sizeof((*p).message) * 2; //skip the char that was written to the tag
+  String x = block.substring(index, index + (sizeof((*toReturn).x) * 2)); // multiply by 2 since two hex chars in one byte
+  index += sizeof((*toReturn).x) * 2;
+  String y = block.substring(index, index + (sizeof((*toReturn).y)* 2));
+  index += sizeof((*toReturn).y) * 2;
+  String nodeData[4*4]; // 4*4 since 4 nodes with 4 bytes per node
+  for(int j = 0; j < 4; j++) {
+    nodeData[(4*j)+0] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].x)* 2));
+    index += sizeof((*toReturn).otherNodes[j].x) * 2;
+    nodeData[(4*j)+1] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].y)* 2));
+    index += sizeof((*toReturn).otherNodes[j].y) * 2;
+    nodeData[(4*j)+2] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].isLeaf)* 2));
+    index += sizeof((*toReturn).otherNodes[j].isLeaf) * 2;
+    nodeData[(4*j)+3] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].doesExist)* 2));
+    index += sizeof((*toReturn).otherNodes[j].doesExist) * 2;
+  }
+
+//  for(int k=0; k < 16; k++){
+//    if(k %4 == 1){
+//      Serial.println("Node");
+//    }
+//    Serial.println(nodeData[k]);
+//  }
 
 //  Serial.print("String for a is: ");
 //  Serial.println(a);
@@ -539,24 +578,33 @@ PACKET stringToBlock(String block) {
   char buffer[16];
   x.getBytes((byte*)buffer, sizeof(buffer));
   unsigned long long_x = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
-  toReturn.packet.x = (uint16_t) long_x;
+  (*toReturn).x = (uint8_t) long_x;
 //  Serial.print("Value of x in datablock struct is: ");
-//  Serial.println(toReturn.x);
+//  Serial.println((*toReturn).x);
   y.getBytes((byte*)buffer, sizeof(buffer));
   unsigned long long_y = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
-  toReturn.packet.y = (uint16_t) long_y;
-  // for a, we need to get the bytes into memory via strtoul, than convert those bytes to a float
-  // couldn't use strtof since it doesn't let you parse the raw bytes
-  // note that sizeof(long)=sizeof(float)=4 bytes
-  a.getBytes((byte*)buffer, sizeof(buffer));
-  unsigned long long_a = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
-  memcpy(&toReturn.packet.a, &long_a, sizeof(float));
-  
-//  Serial.print("Value of a in datablock struct is: ");
-//  Serial.println(float2s(toReturn.a));
+  (*toReturn).y = (uint8_t) long_y;
 
-  return toReturn;
-}
+  for(int j = 0; j < 4; j++) {
+    nodeData[(4*j)+0].getBytes((byte*)buffer, sizeof(buffer));
+    unsigned long long_x = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+    (*toReturn).otherNodes[j].x = (uint8_t) long_x;
+    nodeData[(4*j)+1].getBytes((byte*)buffer, sizeof(buffer));
+    unsigned long long_y = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+    (*toReturn).otherNodes[j].y = (uint8_t) long_y;
+    if(nodeData[(4*j)+2] != "00") {
+      (*toReturn).otherNodes[j].isLeaf = true;
+    } else {
+      (*toReturn).otherNodes[j].isLeaf = false;
+    }
+    if(nodeData[(4*j)+3] != "00") {
+      (*toReturn).otherNodes[j].doesExist = true;
+    } else {
+      (*toReturn).otherNodes[j].doesExist = false;
+    }
+  }
+
+} // end blockToPacket
 
 char *float2s(float f, unsigned int digits /*=2*/)
 {
@@ -689,7 +737,9 @@ String swapEndiannessForPacket(String s){
   Serial.print("Swapping Endianness for: ");
   Serial.println(s);
   int index = 0; // points to first char of that element
-  int num_of_bytes[] = {2, 2, 4, 1};
+  int num_of_bytes[] = {1, 1, 1};
+  int num_of_bytes_per_node[] = {1, 1, 1, 1};
+  // first do the message, and then the x, and y of the node
   for(int j = 0; j < sizeof(num_of_bytes)/sizeof(int); j++){
     for(int k = 0; k < num_of_bytes[j]/2; k++){
       String temp = s.substring(index + (k*3), index +(k*3)+2); // the first byte of the swap
@@ -705,6 +755,26 @@ String swapEndiannessForPacket(String s){
     Serial.println(j);
     Serial.print("String looks like: ");
     Serial.println(s);
+  }
+  // then do all of the nodes
+  Serial.println("Now working on the nodes");
+  for(int node=0; node < 4; node++) {
+    for(int j = 0; j < sizeof(num_of_bytes)/sizeof(int); j++){
+      for(int k = 0; k < num_of_bytes[j]/2; k++){
+        String temp = s.substring(index + (k*3), index +(k*3)+2); // the first byte of the swap
+        Serial.print("temp: ");
+        Serial.println(temp);
+        s[index + (k*3)] = s[index + ((num_of_bytes[j]-1-k)*3)]; // swap the two chars over
+        s[index + (k*3) + 1] = s[index + ((num_of_bytes[j]-1-k)*3)+1];
+        s[index + ((num_of_bytes[j]-1-k)*3)] = temp[0];
+        s[index + ((num_of_bytes[j]-1-k)*3)+1] = temp[1];
+      }
+      index += num_of_bytes[j] * 3;
+      Serial.print("Byte num: ");
+      Serial.println(j);
+      Serial.print("String looks like: ");
+      Serial.println(s);
+  }
   }
   return s;
 }
@@ -733,4 +803,27 @@ void startFlashSequence(int numOfFlashes, unsigned long lengthOfFlashCycle) {
   time_per_flash_cycle = lengthOfFlashCycle;
   start_time = millis();
   updateFlashSequence();
+}
+
+void printDataBlock(DATABLOCK &d) {
+  Serial.print("x: ");
+  Serial.println(d.x);
+  Serial.print("y: ");
+  Serial.println(d.y);
+  for(int j = 0; j < 4; j++) {
+    if(d.otherNodes[j].doesExist) {
+      Serial.print("Node ");
+      Serial.println(j);
+      Serial.print("x: ");
+      Serial.println(d.otherNodes[j].x);
+      Serial.print("y: ");
+      Serial.println(d.otherNodes[j].y);
+      Serial.print("isLeaf: ");
+      if(d.otherNodes[j].isLeaf){
+        Serial.println("true");
+      } else {
+        Serial.println("false");
+      }
+    }
+  }
 }
