@@ -57,7 +57,7 @@ def xyCheck(currentPoint,targetPoint):
 #Input: currentState and targetState, both of which are tuples of the form (x,y,angle)
 #Output: The control message (as a string). Will return an empty string if the target and current state are the same
 def prepareControlMessage(currentState,targetState):
-	debug = True
+	debug = False
 
 	if withinXYMargin(currentState,targetState) == True:
 		#This is the unlikely case where the robot is already at the x y point that it needs to be at. Therefore, it doesn't move

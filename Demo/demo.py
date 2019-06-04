@@ -20,7 +20,7 @@ def withinRange(angle1,angle2,range):
 
 def main():
 
-    ser = serial.Serial('COM4', 115200, timeout=0)
+    ser = serial.Serial('COM3', 115200, timeout=0)
     print(ser.name)
 
     targetState = (20,80,0)
@@ -45,7 +45,7 @@ def main():
     aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
     parameters = aruco.DetectorParameters_create()
     iter = 0
-    node = 2
+    node = 1
     x = ''
     y = ''
     a = ''
@@ -94,7 +94,7 @@ def main():
                         [x,y] = objectLocalization.scalePoint(fourCorners, objectLocalization.getRectMid(corners[i][0]))
                         [x,y] = objectLocalization.convertToRobotLocation(x,y)
 
-        # print(fourCorners)
+        print(fourCorners)
         # print(corners)
         # print(ids)
 
@@ -121,7 +121,7 @@ def main():
             if temp == b'q' or temp == 'Q':
                 ser.close()
                 break
-            # print(temp)
+            print(temp)
             # if temp[0] == '$':
             base = temp.find(b'$')
             if base > 0:

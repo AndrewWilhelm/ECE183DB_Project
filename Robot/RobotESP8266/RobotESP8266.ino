@@ -39,8 +39,8 @@ void turnRight();
 void turnLeft();
 void moveF();
 void stopMove();
-const int rightPWM = 830;//The analogWrite uses values from 0 to 1024
-const int leftPWM = 830;
+const int rightPWM = 870;//The analogWrite uses values from 0 to 1024
+const int leftPWM = 870;
 
 /****************** User Config ***************************/
 
