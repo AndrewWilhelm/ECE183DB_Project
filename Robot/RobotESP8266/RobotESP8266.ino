@@ -10,6 +10,9 @@
 #include "RF24.h"
 #include <MFRC522.h>
 #include <stdlib.h>
+#include <string>
+#include <sstream>
+#include <iomanip>
 
 #define SD2            9
 #define SD3            10
@@ -26,10 +29,10 @@
 #  define LED_ON digitalWrite(LED_PIN, LOW)
 #  define LED_OFF digitalWrite(LED_PIN, HIGH)
 
-int PWMA=D1;//Right side 
-int PWMB=D2;//Left side 
-int DA=D3;//Right reverse 
-int DB=D4;//Left reverse 
+int PWMA = D1; //Right side
+int PWMB = D2; //Left side
+int DA = D3; //Right reverse
+int DB = D4; //Left reverse
 
 
 void turnRight();
@@ -72,10 +75,36 @@ byte lastBlock[]    = { //00 00 00 00  00 00 FF 07  80 69 FF FF  FF FF FF FF
   0xFF, 0xFF, 0xFF, 0xFF  // 12, 13, 14, 15
 };
 
+struct NODE {
+  uint8_t x = 0;
+  uint8_t y = 0;
+  bool isLeaf = false;
+  bool doesExist = false;
+};
+
 struct DATABLOCK {
-  uint16_t x;
-  uint16_t y;
-  float a;
+  // data about the tag itself
+  uint8_t x = 0;
+  uint8_t y = 0;
+  NODE otherNodes[4];
+};
+
+struct PACKET {
+  char message = 0; // for the robot, the packet command should be null
+  DATABLOCK dataBlock;
+};
+
+struct COMMAND {
+  char message; // either 'l', 'r', or 'f'
+  char padding; // had to put this in since the NodeMCU pads and Arduino does not
+  // and I have no idea why... perhaps a bug?
+  uint16_t pwm;
+};
+
+typedef union PACKETUNION {
+  PACKET packet = PACKET();
+  COMMAND command;
+  byte bytes[sizeof(PACKET)];
 };
 
 
@@ -87,7 +116,9 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
     MFRC522::MIFARE_Key *key,  ///< Key A for the sector.
     byte sector     ///< The sector to dump, 0..39.
                                            );
-char *float2s(float f, unsigned int digits=2);
+char *float2s(float f, unsigned int digits = 2);
+template<typename TInputIter>
+std::string make_hex_string(TInputIter first, TInputIter last, bool use_uppercase = true, bool insert_spaces = false);
 
 void setup() {
   Serial.begin(115200);
@@ -99,12 +130,12 @@ void setup() {
   Serial.println("Radio has begun");
   mfrc522.PCD_Init(); // Init MFRC522 card
   Serial.println("RFID reader intialized");
-  
+
   pinMode(A0, INPUT);
   int result = analogRead(A0);
   Serial.print("I just read ");
   Serial.println(result);
-  if(result < 1024/2) {
+  if (result < 1024 / 2) {
     radioNumber = 1;
   } else {
     radioNumber = 2;
@@ -125,18 +156,18 @@ void setup() {
   // Start the radio listening for data
   radio.startListening();
 
-  // set the mrfrc522 to max gain, 0x0111000
-  mfrc522.PCD_SetAntennaGain(0x05<<4);
+  // set the mrfrc522 to 38 dB, 0x0101000
+  mfrc522.PCD_SetAntennaGain(0x05 << 4);
 
   pinMode(LED_PIN, OUTPUT);
   LED_OFF;
   Serial.print("Ready to go. I am node number: ");
   Serial.println(radioNumber);
 
-  pinMode(PWMA, OUTPUT); 
-  pinMode(PWMB, OUTPUT); 
-  pinMode(DA, OUTPUT); 
-  pinMode(DB, OUTPUT); 
+  pinMode(PWMA, OUTPUT);
+  pinMode(PWMB, OUTPUT);
+  pinMode(DA, OUTPUT);
+  pinMode(DB, OUTPUT);
   Serial.println("Finished setting up motors");
 }
 
@@ -144,60 +175,75 @@ void loop() {
 
   if ( radio.available()) {
 
+    PACKETUNION packetUnion;
     while (radio.available()) {                                   // While there is data ready
-      radio.read( &message, message_length * sizeof(char) );             // Get the payload
+      radio.read( &packetUnion, sizeof(packetUnion) );             // Get the payload
     }
 
-    Serial.print("Got the message: ");
-    Serial.println(message);
-
-    if (message[0] == 'r') {
-      turnRight();
-    }
-    else if (message[0] == 'l') {
-      turnLeft();
-    }
-    else if (message[0] == 'f') {
-      char val1 = message[1];
-      char val2 = message[2];
-      char val3 = message[3];
-      int v1 = (int) val1 - ((int) '0');
-      int v2 = (int) val2 - ((int) '0');
-      int v3 = (int) val3 - ((int) '0');
-      int pwmNumber = v1* 100 + v2*10 + v3;
-      char val4 = '0';
-      if (val1 == '1') {
-        val4 = message[4];
-        int v4 = (int) val4 - ((int) '0');
-        pwmNumber = pwmNumber*10 + v4;
-      }
-      moveF(pwmNumber);
-    }
-
-    // extract the position data
-    // TODO: actually extract the position data
-    //    if (message[0] == 'r') {
-    //      // put into read mode
-    //      Serial.println("Put into read mode");
-    //      isReadMode = true;
-    //    } else if (message[0] == 'w') {
-    //      //put into write mode and set the message to write
-    //      Serial.println("Put into write mode");
-    //      data_string = String(message);
-    //      data_string = data_string.substring(2, data_string.length());// just get the data to write
-    //      //        data_string.replace(" ", "");
-    //      //        data_string.replace("\n", "");
-    //      Serial.print("Will write: ");
-    //      Serial.println(data_string);
-    //      isReadMode = false;
+    //    while (radio.available()) {                                   // While there is data ready
+    //      radio.read( &message, message_length * sizeof(char) );             // Get the payload
     //    }
 
-  }
+    PACKET packet = packetUnion.packet;
+    COMMAND command = packetUnion.command;
+    DATABLOCK data = packet.dataBlock;
 
-  if (RFIDTagIsPresent()) {
+    Serial.print("Got the message: ");
+    Serial.println(packet.message);
+
+    if (command.message == 'r') {
+      turnRight();
+      Serial.println("Turning right");
+    }
+    else if (command.message == 'l') {
+      turnLeft();
+      Serial.println("Turning left");
+    }
+    else if (command.message == 'f') {
+      //      char val1 = message[1];
+      //      char val2 = message[2];
+      //      char val3 = message[3];
+      //      int v1 = (int) val1 - ((int) '0');
+      //      int v2 = (int) val2 - ((int) '0');
+      //      int v3 = (int) val3 - ((int) '0');
+      //      int pwmNumber = v1 * 100 + v2 * 10 + v3;
+      //      char val4 = '0';
+      //      if (val1 == '1') {
+      //        val4 = message[4];
+      //        int v4 = (int) val4 - ((int) '0');
+      //        pwmNumber = pwmNumber * 10 + v4;
+      //      }
+      //      moveF(pwmNumber);
+      moveF(command.pwm);
+      Serial.print("Moving forward at pwm value ");
+      Serial.println(command.pwm);
+      
+    } else if (packet.message == 'w') {
+      Serial.println("Writing...");
+      printDataBlock(data);
+      data_string = String(make_hex_string(std::begin(packetUnion.bytes), std::end(packetUnion.bytes), true, true).c_str());
+      data_string = swapEndiannessForPacket(data_string);
+      Serial.print("Will write: ");
+      Serial.println(data_string);
+      if (RFIDTagIsPresent()) {
+        writeRFIDTag(data_string);
+        Serial.println("Wrote to the tag");
+      } else {
+        Serial.println("No tag present");
+        //TODO: make it so that it tells this to the central computer
+      }
+
+
+    }
+
+  } // end if(radio.available())
+
+
+
+  if (mfrc522.PICC_IsNewCardPresent()) { // can also use RFIDTagIsPresent() if you want slightly different functionality
     String temp = readRFIDTag();
     if (temp == "") {
-//      Serial.println("Something went wrong");
+      //      Serial.println("Something went wrong");
     } else {
       Serial.println(temp);
       LED_ON;
@@ -205,42 +251,44 @@ void loop() {
       // parse the data we want
       String rfidTagData = temp;
       rfidTagData.replace(" ", "");
-//      String firstBlock = rfidTagData.substring(0, rfidTagData.indexOf('\n')+1);
-//      Serial.print("Data in First Block: ");
-//      Serial.println(rfidTagData);
-      DATABLOCK firstBlockData = parseBlock(rfidTagData);
-      Serial.print("x: ");
-      Serial.println(firstBlockData.x);
-      Serial.print("y: ");
-      Serial.println(firstBlockData.y);
-      Serial.print("a: ");
-      Serial.println(float2s(firstBlockData.a));
-
+      PACKET firstBlockData;
+      blockToPacket(rfidTagData, &firstBlockData);
+      //      String firstBlock = rfidTagData.substring(0, rfidTagData.indexOf('\n')+1);
+      //      Serial.print("Data in First Block: ");
+      //      Serial.println(rfidTagData);
+      //      DATABLOCK firstBlockData = parseBlock(rfidTagData);
+      //      Serial.print("x: ");
+      //      Serial.println(firstBlockData.x);
+      //      Serial.print("y: ");
+      //      Serial.println(firstBlockData.y);
+      //      //      Serial.print("a: ");
+      //      //      Serial.println(float2s(firstBlockData.a));
+      printDataBlock(firstBlockData.dataBlock);
       // send a message that you read an RFID tag
       radio.stopListening();
       radio.openWritingPipe(addresses[radioNumber + 3]);
       if (!radio.write( &firstBlockData, sizeof(firstBlockData) )) {
         Serial.println("Couldn't send message:");
-//        Serial.print(temp);
+        //        Serial.print(temp);
       } else {
         Serial.println(F("Sent the data"));
-//        Serial.print(temp);
+        //        Serial.print(temp);
       }
       radio.startListening();
 
-//      // send a message that you read an RFID tag
-//      radio.stopListening();
-//      radio.openWritingPipe(addresses[radioNumber + 3]);
-//      temp = "% " + temp; //preappend the % for processing purposes at the transmitter
-//      temp.getBytes((unsigned char*)message, message_length);
-//      if (!radio.write( &message, sizeof(char) * temp.length() )) {
-//        Serial.println("Couldn't send message:");
-//        Serial.print(temp);
-//      } else {
-//        Serial.println(F("Sent: "));
-//        Serial.print(temp);
-//      }
-//      radio.startListening();
+      //      // send a message that you read an RFID tag
+      //      radio.stopListening();
+      //      radio.openWritingPipe(addresses[radioNumber + 3]);
+      //      temp = "% " + temp; //preappend the % for processing purposes at the transmitter
+      //      temp.getBytes((unsigned char*)message, message_length);
+      //      if (!radio.write( &message, sizeof(char) * temp.length() )) {
+      //        Serial.println("Couldn't send message:");
+      //        Serial.print(temp);
+      //      } else {
+      //        Serial.println(F("Sent: "));
+      //        Serial.print(temp);
+      //      }
+      //      radio.startListening();
     }
 
   }
@@ -254,7 +302,7 @@ bool RFIDTagIsPresent() {
   byte atqa_size = 2;
   MFRC522::StatusCode result = mfrc522.PICC_WakeupA(atqa_answer, &atqa_size);
   if ( ! (result == MFRC522::STATUS_OK || result == MFRC522::STATUS_COLLISION)) {
-//    Serial.println("Status was not okay and there were no collisions");
+    //    Serial.println("Status was not okay and there were no collisions");
     return false;
   }
   return true;
@@ -265,7 +313,7 @@ bool RFIDTagIsPresent() {
 bool validateTag() {
   // Select one of the cards
   if ( ! mfrc522.PICC_ReadCardSerial()) {
-//    Serial.println("Couldn't select a card");
+    //    Serial.println("Couldn't select a card");
     return false;
   }
 
@@ -292,9 +340,9 @@ bool validateTag() {
 String readRFIDTag() {
 
   if ( !validateTag() ) {
-//      Serial.println("Can't read or write to the tag");
-      return "";
-    }
+    //      Serial.println("Can't read or write to the tag");
+    return "";
+  }
 
   // Choose the sector and block to read from
   byte sector         = 2;
@@ -317,7 +365,18 @@ String readRFIDTag() {
   Serial.println(F("Current data in sector:"));
   //mfrc522.PICC_DumpMifareClassicSectorToBuffer(&(mfrc522.uid), &key, sector);
   String temp = PICC_DumpMifareClassicSectorToString(&(mfrc522.uid), &key, sector);
+  Serial.println("temp");
   Serial.println(temp);
+
+  // make it so that instead of 4 separate lines, we have just one long line of strings
+  // we also need to put it in order though as if we get rid of \n, it's backwards
+  String one_line = "";
+  int string_index = 0;
+  for (int j = 0; j < 4; j++) {
+    one_line = temp.substring(string_index, temp.indexOf('\n', string_index)) + one_line;
+    string_index = temp.indexOf('\n', string_index) + 2;
+  }
+  temp = one_line;
 
   // Halt PICC
   mfrc522.PICC_HaltA();
@@ -326,10 +385,9 @@ String readRFIDTag() {
 
 
   int length_of_message = temp.length();
-  temp = temp.substring(temp.lastIndexOf('\n', length_of_message - 2) + 1, length_of_message); // get the last block (length - 2 to avoid the ending newline)
   temp.trim();
-  temp.replace("  ", " "); //get rid of extra spaces
-  temp.getBytes(data, message_length);
+  temp.replace("  ", " ");
+  //  temp.getBytes(data, message_length);
 
   return temp;
 
@@ -342,9 +400,9 @@ bool writeRFIDTag(String toWrite) {
   byte toWrite_bytes[data_length];
 
   if ( !validateTag() ) {
-//      Serial.println("Can't read or write to the tag");
-      return "";
-    }
+    //      Serial.println("Can't read or write to the tag");
+    return "";
+  }
 
   MFRC522::StatusCode status;
   byte buffer[18];
@@ -572,36 +630,37 @@ String PICC_DumpMifareClassicSectorToString(MFRC522::Uid *uid,      ///< Pointer
 } // End PICC_DumpMifareClassicSectorToSerial()
 
 /*Motor drivers*/
-void moveF(int pwmValue){
-    analogWrite(PWMA, pwmValue);//right motor 
-    digitalWrite(DA, HIGH); 
-      
-    analogWrite(PWMB, pwmValue); //left motor
-    digitalWrite(DB, LOW);  
+void moveF(int pwmValue) {
+  analogWrite(PWMA, pwmValue);//right motor
+  digitalWrite(DA, HIGH);
+
+  analogWrite(PWMB, pwmValue); //left motor
+  digitalWrite(DB, LOW);
 }
 
 void turnRight() {
-    analogWrite(PWMA, rightPWM); 
-    digitalWrite(DA, LOW);//go in reverse 
-      
-    analogWrite(PWMB, leftPWM); 
-    digitalWrite(DB, LOW); 
+  analogWrite(PWMA, rightPWM);
+  digitalWrite(DA, LOW);//go in reverse
+
+  analogWrite(PWMB, leftPWM);
+  digitalWrite(DB, LOW);
 }
 
- void turnLeft() {
-    analogWrite(PWMA, rightPWM); 
-    digitalWrite(DA, HIGH); 
-      
-    analogWrite(PWMB, leftPWM); 
-    digitalWrite(DB, HIGH);//go in reverse 
+void turnLeft() {
+  analogWrite(PWMA, rightPWM);
+  digitalWrite(DA, HIGH);
+
+  analogWrite(PWMB, leftPWM);
+  digitalWrite(DB, HIGH);//go in reverse
 }
 
 void stopMove() {
-    analogWrite(PWMA, 0); 
-    digitalWrite(DA, HIGH); 
-      
-    analogWrite(PWMB, 0); 
-    digitalWrite(DB, LOW);}
+  analogWrite(PWMA, 0);
+  digitalWrite(DA, HIGH);
+
+  analogWrite(PWMB, 0);
+  digitalWrite(DB, LOW);
+}
 
 // parses a string of the bytes into a data block. Expects the bytes to be all in one line, no spaces
 DATABLOCK parseBlock(String block) {
@@ -610,138 +669,169 @@ DATABLOCK parseBlock(String block) {
   int index = 0;
   String x = block.substring(0, sizeof(toReturn.x) * 2); // multiply by 2 since two hex chars in one byte
   index += sizeof(toReturn.x) * 2;
-  String y = block.substring(index, index + (sizeof(toReturn.y)* 2));
+  String y = block.substring(index, index + (sizeof(toReturn.y) * 2));
   index += sizeof(toReturn.y) * 2;
-  String a = block.substring(index, index + (sizeof(toReturn.a)* 2));
+  String nodeData[4 * 4]; // 4*4 since 4 nodes with 4 bytes per node
+  for (int j = 0; j < 4; j++) {
+    for (int k = 0; k < 4; k++) {
+      nodeData[(4 * j) + 0] = block.substring(index, index + (sizeof(toReturn.otherNodes[k].x) * 2));
+      index += sizeof(toReturn.otherNodes[k].x) * 2;
+      nodeData[(4 * j) + 1] = block.substring(index, index + (sizeof(toReturn.otherNodes[k].y) * 2));
+      index += sizeof(toReturn.otherNodes[k].y) * 2;
+      nodeData[(4 * j) + 2] = block.substring(index, index + (sizeof(toReturn.otherNodes[k].isLeaf) * 2));
+      index += sizeof(toReturn.otherNodes[k].isLeaf) * 2;
+      nodeData[(4 * j) + 3] = block.substring(index, index + (sizeof(toReturn.otherNodes[k].doesExist) * 2));
+      index += sizeof(toReturn.otherNodes[k].doesExist) * 2;
+    }
+  }
 
-//  Serial.print("String for a is: ");
-//  Serial.println(a);
+  //  Serial.print("String for a is: ");
+  //  Serial.println(a);
 
   // now convert each substring into it's corresponding data value
   char buffer[16];
   x.getBytes((byte*)buffer, sizeof(buffer));
   unsigned long long_x = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
-  toReturn.x = (uint16_t) long_x;
-//  Serial.print("Value of x in datablock struct is: ");
-//  Serial.println(toReturn.x);
+  toReturn.x = (uint8_t) long_x;
+  //  Serial.print("Value of x in datablock struct is: ");
+  //  Serial.println(toReturn.x);
   y.getBytes((byte*)buffer, sizeof(buffer));
   unsigned long long_y = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
-  toReturn.y = (uint16_t) long_y;
+  toReturn.y = (uint8_t) long_y;
+
+  for (int j = 0; j < 4; j++) {
+    nodeData[(4 * j) + 0].getBytes((byte*)buffer, sizeof(buffer));
+    unsigned long long_x = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+    toReturn.otherNodes[j].x = (uint8_t) long_x;
+    nodeData[(4 * j) + 1].getBytes((byte*)buffer, sizeof(buffer));
+    unsigned long long_y = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+    toReturn.otherNodes[j].y = (uint8_t) long_y;
+    if (nodeData[(4 * j) + 2] != "00") {
+      toReturn.otherNodes[j].isLeaf = true;
+    } else {
+      toReturn.otherNodes[j].isLeaf = false;
+    }
+    if (nodeData[(4 * j) + 3] != "00") {
+      toReturn.otherNodes[j].doesExist = true;
+    } else {
+      toReturn.otherNodes[j].doesExist = false;
+    }
+  }
   // for a, we need to get the bytes into memory via strtoul, than convert those bytes to a float
   // couldn't use strtof since it doesn't let you parse the raw bytes
   // note that sizeof(long)=sizeof(float)=4 bytes
-  a.getBytes((byte*)buffer, sizeof(buffer));
-  unsigned long long_a = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
-  memcpy(&toReturn.a, &long_a, sizeof(float));
-  
-//  Serial.print("Value of a in datablock struct is: ");
-//  Serial.println(float2s(toReturn.a));
+  //  a.getBytes((byte*)buffer, sizeof(buffer));
+  //  unsigned long long_a = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+  //  memcpy(&toReturn.a, &long_a, sizeof(float));
+
+  //  Serial.print("Value of a in datablock struct is: ");
+  //  Serial.println(float2s(toReturn.a));
 
   return toReturn;
 }
 
 char *float2s(float f, unsigned int digits /*=2*/)
 {
-   static char buf[16]; // Buffer to build string representation
-   int index = 0;       // Position in buf to copy stuff to
+  static char buf[16]; // Buffer to build string representation
+  int index = 0;       // Position in buf to copy stuff to
 
-   // For debugging: Uncomment the following line to see what the
-   // function is working on.
-   //Serial.print("In float2s: bytes of f are: ");printBytes(f);
+  // For debugging: Uncomment the following line to see what the
+  // function is working on.
+  //Serial.print("In float2s: bytes of f are: ");printBytes(f);
 
-   // Handle the sign here:
-   if (f < 0.0) {
-       buf[index++] = '-'; 
-       f = -f;
-   }
-   // From here on, it's magnitude
+  // Handle the sign here:
+  if (f < 0.0) {
+    buf[index++] = '-';
+    f = -f;
+  }
+  // From here on, it's magnitude
 
-   // Handle infinities 
-   if (isinf(f)) {
-       strcpy(buf+index, "INF");
-       return buf;
-   }
-   
-   // Handle NaNs
-   if (isnan(f)) {
-       strcpy(buf+index, "NAN");
-       return buf;
-   }
-   
-   //
-   // Handle numbers.
-   //
-   
-   // Six or seven significant decimal digits will have no more than
-   // six digits after the decimal point.
-   //
-   if (digits > 6) {
-       digits = 6;
-   }
-   
-   // "Normalize" into integer part and fractional part
-   int exponent = 0;
-   if (f >= 10) {
-       while (f >= 10) {
-           f /= 10;
-           ++exponent;
-       }
-   }
-   else if ((f > 0) && (f < 1)) {
-       while (f < 1) {
-           f *= 10;
-           --exponent;
-       }
-   }
+  // Handle infinities
+  if (isinf(f)) {
+    strcpy(buf + index, "INF");
+    return buf;
+  }
 
-   //
-   // Now add 0.5 in to the least significant digit that will
-   // be printed.
+  // Handle NaNs
+  if (isnan(f)) {
+    strcpy(buf + index, "NAN");
+    return buf;
+  }
 
-   //float rounder = 0.5/pow(10, digits);
-   // Use special power-of-integer function instead of the
-   // floating point library function.
-   float rounder = 0.5 / ipow10(digits);
-   f += rounder;
+  //
+  // Handle numbers.
+  //
 
-   //
-   // Get the whole number part and the fractional part into integer
-   // data variables.
-   //
-   unsigned intpart = (unsigned)f;
-   unsigned long fracpart  = (unsigned long)((f - intpart) * 1.0e7);
+  // Six or seven significant decimal digits will have no more than
+  // six digits after the decimal point.
+  //
+  if (digits > 6) {
+    digits = 6;
+  }
 
-   //
-   // Divide by a power of 10 that zeros out the lower digits
-   // so that the "%0.lu" format will give exactly the required number
-   // of digits.
-   //
-   fracpart /= ipow10(6-digits+1);
+  // "Normalize" into integer part and fractional part
+  int exponent = 0;
+  if (f >= 10) {
+    while (f >= 10) {
+      f /= 10;
+      ++exponent;
+    }
+  }
+  else if ((f > 0) && (f < 1)) {
+    while (f < 1) {
+      f *= 10;
+      --exponent;
+    }
+  }
 
-   //
-   // Create the format string and use it with sprintf to form
-   // the print string.
-   //
-   char format[16];
-   // If digits > 0, print
-   //    int part decimal point fraction part and exponent.
+  //
+  // Now add 0.5 in to the least significant digit that will
+  // be printed.
 
-   if (digits) {
-     
-       sprintf(format, "%%u.%%0%dlu E%%+d", digits);
-       //
-       // To make sure the format is what it is supposed to be, uncomment
-       // the following line.
-       //Serial.print("format: ");Serial.println(format);
-       sprintf(buf+index, format, intpart, fracpart, exponent);
-   }
-   else { // digits == 0; just print the intpart and the exponent
-       sprintf(format, "%%u E%%+d");
-       sprintf(buf+index, format, intpart, exponent);
-   }
+  //float rounder = 0.5/pow(10, digits);
+  // Use special power-of-integer function instead of the
+  // floating point library function.
+  float rounder = 0.5 / ipow10(digits);
+  f += rounder;
 
-   return buf;
-} 
+  //
+  // Get the whole number part and the fractional part into integer
+  // data variables.
+  //
+  unsigned intpart = (unsigned)f;
+  unsigned long fracpart  = (unsigned long)((f - intpart) * 1.0e7);
+
+  //
+  // Divide by a power of 10 that zeros out the lower digits
+  // so that the "%0.lu" format will give exactly the required number
+  // of digits.
+  //
+  fracpart /= ipow10(6 - digits + 1);
+
+  //
+  // Create the format string and use it with sprintf to form
+  // the print string.
+  //
+  char format[16];
+  // If digits > 0, print
+  //    int part decimal point fraction part and exponent.
+
+  if (digits) {
+
+    sprintf(format, "%%u.%%0%dlu E%%+d", digits);
+    //
+    // To make sure the format is what it is supposed to be, uncomment
+    // the following line.
+    //Serial.print("format: ");Serial.println(format);
+    sprintf(buf + index, format, intpart, fracpart, exponent);
+  }
+  else { // digits == 0; just print the intpart and the exponent
+    sprintf(format, "%%u E%%+d");
+    sprintf(buf + index, format, intpart, exponent);
+  }
+
+  return buf;
+}
 //
 // Handy function to print hex values
 // of the bytes of a float.  Sometimes
@@ -757,17 +847,17 @@ char *float2s(float f, unsigned int digits /*=2*/)
 //
 void printBytes(float f)
 {
-   unsigned char *chpt = (unsigned char *)&f;
-   char buffer[5]; // Big enough to hold each printed byte 0x..\0
-   //
-   // It's little-endian: Get bytes from memory in reverse order
-   // so that they show in "register order."
-   //
-   for (int i = sizeof(f)-1; i >= 0; i--) {
-       sprintf(buffer, "%02x ", (unsigned char)chpt[i]);
-       Serial.print(buffer);
-   }
-   Serial.println();
+  unsigned char *chpt = (unsigned char *)&f;
+  char buffer[5]; // Big enough to hold each printed byte 0x..\0
+  //
+  // It's little-endian: Get bytes from memory in reverse order
+  // so that they show in "register order."
+  //
+  for (int i = sizeof(f) - 1; i >= 0; i--) {
+    sprintf(buffer, "%02x ", (unsigned char)chpt[i]);
+    Serial.print(buffer);
+  }
+  Serial.println();
 }
 
 //
@@ -781,15 +871,167 @@ void printBytes(float f)
 // powers wouldn't make much sense.
 //
 // If you want a more general function for raising
-// an integer to an integer power, you could make 
+// an integer to an integer power, you could make
 // "base" a parameter.
 unsigned long ipow10(unsigned power)
 {
-   const unsigned base = 10;
-   unsigned long retval = 1;
+  const unsigned base = 10;
+  unsigned long retval = 1;
 
-   for (int i = 0; i < power; i++) {
-       retval *= base;
-   }
-   return retval;
+  for (int i = 0; i < power; i++) {
+    retval *= base;
+  }
+  return retval;
+}
+
+template<typename TInputIter>
+std::string make_hex_string(TInputIter first, TInputIter last, bool use_uppercase /*= true*/, bool insert_spaces /*= false*/)
+{
+  std::ostringstream ss;
+  ss << std::hex << std::setfill('0');
+  if (use_uppercase)
+    ss << std::uppercase;
+  while (first != last)
+  {
+    ss << std::setw(2) << static_cast<int>(*first++);
+    if (insert_spaces && first != last)
+      ss << " ";
+  }
+  return ss.str();
+}
+
+// changes the endianness for the data in this string, based upon the packet struct
+// assumes string is in "XX XX XX ..." format
+// if the packet changes, need to edit the code below
+String swapEndiannessForPacket(String s) {
+//  Serial.print("Swapping Endianness for: ");
+//  Serial.println(s);
+  int index = 0; // points to first char of that element
+  int num_of_bytes[] = {1, 1, 1};
+  int num_of_bytes_per_node[] = {1, 1, 1, 1};
+  // first do the message, and then the x, and y of the node
+  for (int j = 0; j < sizeof(num_of_bytes) / sizeof(int); j++) {
+    for (int k = 0; k < num_of_bytes[j] / 2; k++) {
+      String temp = s.substring(index + (k * 3), index + (k * 3) + 2); // the first byte of the swap
+//      Serial.print("temp: ");
+//      Serial.println(temp);
+      s[index + (k * 3)] = s[index + ((num_of_bytes[j] - 1 - k) * 3)]; // swap the two chars over
+      s[index + (k * 3) + 1] = s[index + ((num_of_bytes[j] - 1 - k) * 3) + 1];
+      s[index + ((num_of_bytes[j] - 1 - k) * 3)] = temp[0];
+      s[index + ((num_of_bytes[j] - 1 - k) * 3) + 1] = temp[1];
+    }
+    index += num_of_bytes[j] * 3;
+//    Serial.print("Byte num: ");
+//    Serial.println(j);
+//    Serial.print("String looks like: ");
+//    Serial.println(s);
+  }
+  // then do all of the nodes
+//  Serial.println("Now working on the nodes");
+  for (int node = 0; node < 4; node++) {
+    for (int j = 0; j < sizeof(num_of_bytes) / sizeof(int); j++) {
+      for (int k = 0; k < num_of_bytes[j] / 2; k++) {
+        String temp = s.substring(index + (k * 3), index + (k * 3) + 2); // the first byte of the swap
+//        Serial.print("temp: ");
+//        Serial.println(temp);
+        s[index + (k * 3)] = s[index + ((num_of_bytes[j] - 1 - k) * 3)]; // swap the two chars over
+        s[index + (k * 3) + 1] = s[index + ((num_of_bytes[j] - 1 - k) * 3) + 1];
+        s[index + ((num_of_bytes[j] - 1 - k) * 3)] = temp[0];
+        s[index + ((num_of_bytes[j] - 1 - k) * 3) + 1] = temp[1];
+      }
+      index += num_of_bytes[j] * 3;
+//      Serial.print("Byte num: ");
+//      Serial.println(j);
+//      Serial.print("String looks like: ");
+//      Serial.println(s);
+    }
+  }
+  return s;
+}
+
+// converts string of bytes (with no spaces) to a packet
+void blockToPacket(String block, PACKET *p) {
+  DATABLOCK* toReturn = &((*p).dataBlock);
+  (*p).message = 'r';
+  // first separate each part into smaller substrings
+  int index = sizeof((*p).message) * 2; //skip the char that was written to the tag
+  String x = block.substring(index, index + (sizeof((*toReturn).x) * 2)); // multiply by 2 since two hex chars in one byte
+  index += sizeof((*toReturn).x) * 2;
+  String y = block.substring(index, index + (sizeof((*toReturn).y) * 2));
+  index += sizeof((*toReturn).y) * 2;
+  String nodeData[4 * 4]; // 4*4 since 4 nodes with 4 bytes per node
+  for (int j = 0; j < 4; j++) {
+    nodeData[(4 * j) + 0] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].x) * 2));
+    index += sizeof((*toReturn).otherNodes[j].x) * 2;
+    nodeData[(4 * j) + 1] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].y) * 2));
+    index += sizeof((*toReturn).otherNodes[j].y) * 2;
+    nodeData[(4 * j) + 2] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].isLeaf) * 2));
+    index += sizeof((*toReturn).otherNodes[j].isLeaf) * 2;
+    nodeData[(4 * j) + 3] = block.substring(index, index + (sizeof((*toReturn).otherNodes[j].doesExist) * 2));
+    index += sizeof((*toReturn).otherNodes[j].doesExist) * 2;
+  }
+
+  //  for(int k=0; k < 16; k++){
+  //    if(k %4 == 1){
+  //      Serial.println("Node");
+  //    }
+  //    Serial.println(nodeData[k]);
+  //  }
+
+  //  Serial.print("String for a is: ");
+  //  Serial.println(a);
+
+  // now convert each substring into it's corresponding data value
+  char buffer[16];
+  x.getBytes((byte*)buffer, sizeof(buffer));
+  unsigned long long_x = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+  (*toReturn).x = (uint8_t) long_x;
+  //  Serial.print("Value of x in datablock struct is: ");
+  //  Serial.println((*toReturn).x);
+  y.getBytes((byte*)buffer, sizeof(buffer));
+  unsigned long long_y = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+  (*toReturn).y = (uint8_t) long_y;
+
+  for (int j = 0; j < 4; j++) {
+    nodeData[(4 * j) + 0].getBytes((byte*)buffer, sizeof(buffer));
+    unsigned long long_x = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+    (*toReturn).otherNodes[j].x = (uint8_t) long_x;
+    nodeData[(4 * j) + 1].getBytes((byte*)buffer, sizeof(buffer));
+    unsigned long long_y = strtoul( buffer, nullptr, 16); //base=16 since it's hexadecimal
+    (*toReturn).otherNodes[j].y = (uint8_t) long_y;
+    if (nodeData[(4 * j) + 2] != "00") {
+      (*toReturn).otherNodes[j].isLeaf = true;
+    } else {
+      (*toReturn).otherNodes[j].isLeaf = false;
+    }
+    if (nodeData[(4 * j) + 3] != "00") {
+      (*toReturn).otherNodes[j].doesExist = true;
+    } else {
+      (*toReturn).otherNodes[j].doesExist = false;
+    }
+  }
+
+} // end blockToPacket
+
+void printDataBlock(DATABLOCK &d) {
+  Serial.print("x: ");
+  Serial.println(d.x);
+  Serial.print("y: ");
+  Serial.println(d.y);
+  for (int j = 0; j < 4; j++) {
+    if (d.otherNodes[j].doesExist) {
+      Serial.print("Node ");
+      Serial.println(j);
+      Serial.print("x: ");
+      Serial.println(d.otherNodes[j].x);
+      Serial.print("y: ");
+      Serial.println(d.otherNodes[j].y);
+      Serial.print("isLeaf: ");
+      if (d.otherNodes[j].isLeaf) {
+        Serial.println("true");
+      } else {
+        Serial.println("false");
+      }
+    }
+  }
 }
