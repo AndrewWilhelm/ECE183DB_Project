@@ -147,43 +147,61 @@ def getClosestNode(point,edges):
 			closestNode = nodeList[index] 
 	return closestNode
 
+def isEdgeinGraph(edge,graph):
+	v1 = (edge[0],edge[1])
+	v2 = (edge[1],edge[0])
+
+	#Some graphs also have an additional boolean variable in them for isExplored
+	v3 = (edge[0],edge[1],True)
+	v4 = (edge[0],edge[1],False)
+	v5 = (edge[1],edge[0],True)
+	v6 = (edge[1],edge[0],False)
+	if v1 in graph or v2 in graph or v3 in graph or v4 in graph:
+		return True
+	return False
+
+
 #Returns the next node that the robot at robotLocation should visit
-#given the graph provided by edges (which need to include isExplored boolean values)
+#given the graph provided by the robot's local map edges (which need to include isExplored boolean values)
+#Uses the robot's local map to make a decision for where to move next
 #Returns: a tuple (x,y) of the next node. None if there is no logical move available
 #Robots are specified a target location (x,y) and an edge that they are travelling on
 #Two robots cannot be on the same edge or travelling towards the same target at any time
-def getNextMove(edges,robotLocation,allRobotTargetLocations=[],robotEdges=[]):
+def getNextMove(localMap,robotLocation, allRobotTargetLocations=[],robotEdges=[]):
 	minDist = 1000
 	minPath = []
-	for index in range(len(edges)):
-		edge = edges[index]
-		edgeV1 = (edge[0],edge[1])
-		edgeV2 = (edge[1],edge[0])
-		# print("Comparison:")
-		# print(edgeV1)
-		# print(robotEdges)
-		if edgeV1 in robotEdges or edgeV2 in robotEdges:
-			print("TRIGGERED")
-			print(robotEdges)
-			print(edgeV1)
-			print("end")
+	for index in range(len(localMap)):
+		edge = localMap[index]
+		# edgeV1 = (edge[0],edge[1])
+		# edgeV2 = (edge[1],edge[0])
+		# # print("Comparison:")
+		# # print(edgeV1)
+		# # print(robotEdges)
+		# if edgeV1 in robotEdges or edgeV2 in robotEdges:
+		# 	continue
+		if isEdgeinGraph(edge,robotEdges):#another robot is on that edge or about to move to that edge -> it's in the process of being explored already
 			continue
-		if edge[0] == robotLocation and edge[2] == False and edge[1]:
+
+		if edge[0] == robotLocation and edge[2] == False:
+			print("gets here")
 			if edge[1] in allRobotTargetLocations:#Another robot just beat it to that node
 				continue
-			edge[2] = True
+			# edge[2] = True
+			localMap[index] = (edge[0],edge[1],True)
+			return edge[1]
 			# print("here")
 			# print(robotLocation)
 			# print(allRobotTargetLocations)
-			return edge[1]
-		elif edge[1] == robotLocation and edge[2] == False and edge[0]:
+		elif edge[1] == robotLocation and edge[2] == False:
 			if edge[0] in allRobotTargetLocations:#Another robot just beat it to that node
 				continue
-			edge[2] = True
+			# edge[2] = True
+			localMap[index] = (edge[0],edge[1],True)
+			return edge[0]
 
 		if edge[2] == False:
-			pathA = findValidPath(robotLocation,edge[0],edges)
-			pathB = findValidPath(robotLocation,edge[1],edges)
+			pathA = findValidPath(robotLocation,edge[0],localMap)
+			pathB = findValidPath(robotLocation,edge[1],localMap)
 			if pathA != None:
 				if len(pathA) < minDist:
 					# print(pathA)
@@ -193,9 +211,9 @@ def getNextMove(edges,robotLocation,allRobotTargetLocations=[],robotEdges=[]):
 					else:
 						edgeToEval = (robotLocation,pathA[-2])
 						targetPoint = pathA[-2]
-					edgeToEvalV2 = (edgeToEval[1],edgeToEval[0])
+					# edgeToEvalV2 = (edgeToEval[1],edgeToEval[0])
 					#Verify no collsions between robots and the target points/edges
-					if edgeToEval not in robotEdges and edgeToEvalV2 not in robotEdges and targetPoint not in allRobotTargetLocations:
+					if not isEdgeinGraph(edgeToEval,robotEdges) and targetPoint not in allRobotTargetLocations:
 						minPath = pathA
 						minDist = len(pathA)
 			if pathB != None:
@@ -206,9 +224,9 @@ def getNextMove(edges,robotLocation,allRobotTargetLocations=[],robotEdges=[]):
 					else:
 						edgeToEval = (robotLocation,pathB[-2])
 						targetPoint = pathB[-2]
-					edgeToEvalV2 = (edgeToEval[1],edgeToEval[0])
+					# edgeToEvalV2 = (edgeToEval[1],edgeToEval[0])
 					#Verify no collsions between robots and the target points/edges
-					if edgeToEval not in robotEdges and edgeToEvalV2 not in robotEdges and targetPoint not in allRobotTargetLocations:
+					if not isEdgeinGraph(edgeToEval,robotEdges) and targetPoint not in allRobotTargetLocations:
 						minPath = pathB
 						minDist = len(pathB)
 	if len(minPath) > 1:
@@ -219,44 +237,151 @@ def getNextMove(edges,robotLocation,allRobotTargetLocations=[],robotEdges=[]):
 
 	if robotLocation in allRobotTargetLocations:
 		#This robot needs to move since another robot with higher priority wants to move here
-		for index in range(len(edges)):
-			edge = edges[index]
-			edgeV1 = (edge[0],edge[1])
-			edgeV2 = (edge[1],edge[0])
-			print("V1")
-			print(edgeV1)
-			print("V2")
-			print(edgeV2)
-			if edgeV1 not in robotEdges and edgeV2 not in robotEdges:
-				print("-----------------")
-				if edgeV1[0] == robotLocation and edgeV1[1] not in allRobotTargetLocations:
-					return edgeV1[1]
-				elif edgeV1[1] == robotLocation and edgeV1[0] not in allRobotTargetLocations:
-					return edgeV1[0]
+		for index in range(len(localMap)):
+			edge = localMap[index]
+			# edgeV1 = (edge[0],edge[1])
+			# edgeV2 = (edge[1],edge[0])
+
+			if not isEdgeinGraph(edge,robotEdges):
+				if edge[0] == robotLocation and edge[1] not in allRobotTargetLocations:
+					return edge[1]
+				elif edge[1] == robotLocation and edge[0] not in allRobotTargetLocations:
+					return edge[0]
 	# print("Default selected")
 	return robotLocation
 
+#adds edges that are connected to robotLocation if they aren't alrady in the mapToUpdate
+def updateMapUsingSensing(mapToUpdate,globalMap,robotLocation):
+	for edge in globalMap:
+		if edge[0] == robotLocation or edge[1] == robotLocation:
+			if not isEdgeinGraph(edge,mapToUpdate):	
+				mapToUpdate.append((edge[0],edge[1],False))
+
+
+#upades the mapToUpdate using the RFIDInfo
+#Verifies that the information use doesn't violate the global map
+#(i.e. no mistakes were made in what was written to the RFID tag)
+#RFID info is an array [(xloc,yloc),[[xloc, yloc isLeaf] ... x4 ]]
+def updateMapUsingRFID(mapToUpdate,globalMap,RFIDInfo):
+	tagLoc = RFIDInfo[0]
+	adjacentTags = RFIDInfo[1]
+	for adj in adjacentTags:
+		isLeaf = adj[2]
+		edge = (tagLoc,(adj[0],adj[1]))
+		if isEdgeinGraph(edge,globalMap):
+			if (edge[0],edge[1],False) in mapToUpdate:
+				#the edge is already in the map but not explored
+				if isLeaf:
+					i = mapToUpdate.index((edge[0],edge[1],False))
+					mapToUpdate[i] = (edge[0],edge[1],True)
+			if (edge[1],edge[0],False) in mapToUpdate:
+				#the edge is already in the map but not explored
+				if isLeaf:
+					i = mapToUpdate.index((edge[1],edge[0],False))
+					mapToUpdate[i] = (edge[1],edge[0],True)
+			#if it gets here, then the edge has either already been explored
+			#or it is not in the map at all
+			if not isEdgeinGraph(edge,mapToUpdate):
+				if isLeaf:
+					mapToUpdate.append((edge[0],edge[1],True))
+				else:
+					mapToUpdate.append((edge[0],edge[1],False))
+			#if it has been explored on the local map, then we don't do anything
+
+#graph uses (x,y,isExplored) edges
+def determineIsLeaf(node,graph):
+	numEdges = 0
+	for edge in graph:
+		if edge[2] == True:
+			#Can only know if it's a leaf if that edge (and thus that node) has been explored
+			if edge[0] == node or edge[1] == node:
+				#This is an edge coming out of the selected node
+				numEdges = numEdges + 1
+	if numEdges == 1:
+		return True
+	return False
+
+
+#Returns an array in the format of RFID info to write to the RFID tag
+#RFID info is an array [(xloc,yloc),[[xloc, yloc isLeaf] ... x4 ]]
+def genRFIDTagUpdate(localMap,robotLocation):
+	adjacents = []
+	for edge in localMap:
+		if edge[0] == robotLocation:
+			adjacents.append([edge[1][0],edge[1][1],determineIsLeaf(edge[1],localMap)])
+		if edge[1] == robotLocation:
+			adjacents.append([edge[0][0],edge[0][1],determineIsLeaf(edge[1],localMap)])
+	info = [robotLocation,adjacents]
+	return info
+
+
+# #Creates the RFID dictionary RFIDInfo
+# 	#Key: (x,y) tuple location of the RFID tag
+# 	#Value: a list of booleans indicating which adjacent edges have been explored
+# 	#		e.g. [T,F,F,T] indicates the top has been explored, the right edge hasn't
+# 	#			the bottom edge hasn't, and the right edge has been explored
+# #Return: RFIDInfo
+# def initializeGraph(edges):
+# 	RFIDInfo = {}
+# 	for edge in edges:
+# 		node1 = edge[0]
+# 		node2 = edge[1]
+# 		node1 = (node1[0],node1[1])
+# 		node2 = (node2[0],node2[1])
+# 		if node1 not in RFIDInfo:
+# 			RFIDInfo[node1] = [False,False,False,False]
+# 		if node2 not in RFIDInfo:
+# 			RFIDInfo[node2] = [False,False,False,False]
+# 	return RFIDInfo
+
+#performs the necessary sequence of map updates and get the next step.
+#returns the new target location and the info to write to the RFID tag
+#RFID info is the formatted information read from the RFID tag
+def updateMapandDetermineNextStep(localMap,globalMap,robotLocation,RFIDInfo,allRobotTargetLocations=[],robotEdges=[]):
+	#update robot map using "sensing" (i.e. the adjacent nodes in the global map)
+	updateMapUsingSensing(localMap,globalMap,robotLocation)
+
+	#update robot map using RFID tag
+	updateMapUsingRFID(localMap,globalMap,RFIDInfo)
+
+	#get the next move using the robot map. This will also update the robot map to mark that edge has isExplored
+	target = getNextMove(localMap,robotLocation,allRobotTargetLocations,robotEdges)
+
+	#write to the RFID Tag (this can be moved to after updateMapUsingRFID if necessary)
+	info = genRFIDTagUpdate(localMap,robotLocation)
+	return (target,info)
+
+
 def main():
-	
-	edge1 = [(50,50), (50,60), False]
-	edge2 = [(50,50), (60,50), False]
-	edge3 = [(60,50), (60,60), True]
-	edge7 = [(60,60), (60,70), False]
-	edge8 = [(50,50), (50,40), False]
-	edge9 = [(50,50), (40,50), False]
-	edge10 = [(50,40), (60,40), False]
-	edge11 = [(60,40), (60,50), False]
-	edge12 = [(50,60), (50,70), False]
-	edge13 = [(50,70), (60,70), False]
+	# edge1 = [(50,50), (50,60), False]
+	# edge2 = [(50,50), (60,50), False]
+	# edge3 = [(60,50), (60,60), True]
+	# edge7 = [(60,60), (60,70), False]
+	# edge8 = [(50,50), (50,40), False]
 	# edge9 = [(50,50), (40,50), False]
-	# edge10 = [(80,50), (80,60), False]
-	# edge11 = [(80,60), (80,70), False]
-	# edge12 = [(70,60), (70,70), False]
-	# edge13 = [(80,70), (70,70), False]
-	# edge14 = [(70,60), (70,50), False]
-	# edge15 = [(20,30), (20,20), False]
-	graph = [edge1, edge2, edge3, edge7, edge8, edge9, edge10, edge11, edge12, edge13]
-	# graph = [edge1[0:2], edge2[0:2], edge3[0:2], edge7[0:2]]
+	# edge10 = [(50,40), (60,40), False]
+	# edge11 = [(60,40), (60,50), False]
+	# edge12 = [(50,60), (50,70), False]
+	# edge13 = [(50,70), (60,70), False]
+	# edge14 = [(50,70), (40,70), False]
+	# edge15 = [(60,50), (70,50), False]
+	# edge16 = [(60,40), (70,40), False]
+	# graph = [edge1, edge2, edge3, edge7, edge8, edge9, edge10, edge11, edge12, edge13, edge14, edge15, edge16]
+
+	edge1 = [(20,20), (20,40), False] 
+	edge2 = [(20,40), (20,60), False]  
+	edge3 = [(20,40), (50,40), False]  
+	edge4 = [(20,60), (50,60), False] 
+	edge5 = [(20,80), (50,80), False] 
+	edge6 = [(50,20), (50,40), False] 
+	edge7 = [(50,40), (50,60), False] 
+	edge8 = [(50,60), (50,80), False] 
+	edge9 = [(50,20), (80,20), False] 
+	edge10 = [(50,40), (80,40), False] 
+	edge11 = [(50,60), (80,60), False] 
+	edge12 = [(50,80), (80,80), False]
+	graph = [edge1, edge2, edge3, edge4, edge5, edge6, edge7, edge8, edge9, edge10, edge11, edge12] 
+
 	# graph = [edge1, edge2, edge3, edge7, edge8, edge9, edge10, edge11, edge12, edge13, edge14, edge15]
 	# print(graph)
 	# edgeGraph = [convertFromPlotEdgetoEdge(edge1),convertFromPlotEdgetoEdge(edge2),convertFromPlotEdgetoEdge(edge3),convertFromPlotEdgetoEdge(edge7)]
@@ -276,22 +401,41 @@ def main():
 	# fig, ax = plt.subplots()
 	x, y = [],[]
 	line = plt.plot(x,y)[0]
-	robotLocation1 = (40,50)
+	robotLocation1 = (80,20)
 	robotLocation2 = (60,70)
+	rmap1 = []
 
 	while True:
-		plotGraph(graph,[robotLocation1,robotLocation2])
-		# plt.draw()
-		plotGraph(graph,[robotLocation1,robotLocation2])
-		prevLoc1 = robotLocation1
-		prevLoc2 = robotLocation2
-		nextLoc1 = getNextMove(graph,robotLocation1)
-		nextLoc2 = getNextMove(graph,robotLocation2,[nextLoc1],[(prevLoc1,nextLoc1)])
-		print(nextLoc1)
-		print(nextLoc2)
-		robotLocation1 = nextLoc1
-		robotLocation2 = nextLoc2
+		
+		updateMapUsingSensing(rmap1,graph,robotLocation1)
+		plotGraph(rmap1,[robotLocation1])
+		# plotGraph(graph,[robotLocation1])
+		# print(rmap1)
 		plt.waitforbuttonpress()
+		#get the next move using the robot map. This will also update the robot map to mark that edge has isExplored
+		target = getNextMove(rmap1,robotLocation1)
+
+		#write to the RFID Tag (this can be moved to after updateMapUsingRFID if necessary)
+		info = genRFIDTagUpdate(rmap1,robotLocation1)
+		# nextLoc2 = getNextMove(graph,robotLocation2,[nextLoc1],[(prevLoc1,nextLoc1)])
+		print(target)
+		# print(nextLoc2)
+		robotLocation1 = target
+		# robotLocation2 = nextLoc2
+		
+
+		# plotGraph(graph,[robotLocation1,robotLocation2])
+		# # plt.draw()
+		# # plotGraph(graph,[robotLocation1,robotLocation2])
+		# prevLoc1 = robotLocation1
+		# prevLoc2 = robotLocation2
+		# nextLoc1 = getNextMove(graph,robotLocation1)
+		# nextLoc2 = getNextMove(graph,robotLocation2,[nextLoc1],[(prevLoc1,nextLoc1)])
+		# print(nextLoc1)
+		# print(nextLoc2)
+		# robotLocation1 = nextLoc1
+		# robotLocation2 = nextLoc2
+		# plt.waitforbuttonpress()
 
 
 if __name__ == '__main__':

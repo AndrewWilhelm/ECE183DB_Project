@@ -51,7 +51,7 @@ def xyCheck(currentPoint,targetPoint):
 		if (distance > maxDist):
 			distance = maxDist 
 		throttle = ((distance)/maxDist) * (motorMaxValue - motorMinValue) + motorMinValue
-		return("f"+str(int(throttle)))
+		return("f "+str(int(throttle)))
 
 #Prepares the control message for transmission given the current state and target state of the robot
 #Input: currentState and targetState, both of which are tuples of the form (x,y,angle)
@@ -61,7 +61,7 @@ def prepareControlMessage(currentState,targetState):
 
 	if withinXYMargin(currentState,targetState) == True:
 		#This is the unlikely case where the robot is already at the x y point that it needs to be at. Therefore, it doesn't move
-		return "f0"
+		return "f 0"
 
 	if targetState[0] == currentState[0]:
 		if targetState[1] > currentState[1]: #want to move up; angle is zero
