@@ -28,7 +28,7 @@ lbl.pack(fill=tk.X)
 # read_area.pack(side="left", fill=tk.BOTH, pady=10)
 # read_area.grid(row=0,column=1, pady=10)
 readAndEditFrames = tk.Frame(window)
-readAndEditFrames.pack(side="top", fill=tk.X, pady=10, expand=True)
+readAndEditFrames.pack(side="top", fill=tk.X, pady=(10, 0), expand=True)
 editFrame = tk.LabelFrame(readAndEditFrames, text=" Edit ", font=("Calibri", 12))
 editFrame.pack(side="left", fill=tk.X, pady=10, expand=True)
 readFrame = tk.LabelFrame(readAndEditFrames, text=" Read ", font=("Calibri", 12))
@@ -93,6 +93,8 @@ for j in range(4):
 
 # clears the entries for the read panel
 def clearRead():
+    xr_var.set("")
+    yr_var.set("")
     for nodeNum in range(4):
         for index in range(3):
             readNodes[nodeNum][index].set("")
@@ -100,6 +102,8 @@ def clearRead():
 
 # clears the entries for the edit panel
 def clearEdit():
+    xe_var.set("")
+    ye_var.set("")
     for nodeNum in range(4):
         for index in range(3):
             editNodes[nodeNum][index].set("")
@@ -181,6 +185,27 @@ def writeRFID():
     state = "Write"
     btn_text.set(message + state)
 
+
+def eraseNodes():
+    for nodeNum in range(4):
+        for index in range(3):
+            editNodes[nodeNum][index].set("")
+
+
+def transferData():
+    xe_var.set(xr_var.get())
+    ye_var.set(yr_var.get())
+    for nodeNum in range(4):
+        for index in range(3):
+            editNodes[nodeNum][index].set(readNodes[nodeNum][index].get())
+
+
+editButtonsFrame = tk.Frame(window)
+editButtonsFrame.pack(fill=tk.BOTH, pady=1)
+eraseNodesBtn = tk.Button(editButtonsFrame, text="Erase Node Fields", command=eraseNodes)
+eraseNodesBtn.pack(side="left", fill=tk.BOTH, expand=True)
+transferBtn = tk.Button(editButtonsFrame, text="Transfer Data", command=transferData)
+transferBtn.pack(side="right", fill=tk.BOTH, expand=True)
 
 actionFrame = tk.LabelFrame(window, text=" Send Write Command ", font=("Calibri", 12))
 actionFrame.pack(fill=tk.BOTH, pady=10)
