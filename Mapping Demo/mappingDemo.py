@@ -11,6 +11,8 @@ sys.path.insert(0, '../Control/')
 import robotControl
 sys.path.insert(0, '../Mapping/')
 import mapping
+import matplotlib.pyplot as plt
+import multiprocessing
 
 #Checks to see if angle 1 is within range of angles 2.
 #angles are in radians and the range is a double radian
@@ -22,60 +24,69 @@ def withinRange(angle1,angle2,range):
 
 #Return RFID info if it's a valid message
 #Return None otherwise
+#RFID info is an array [(xloc,yloc),[[xloc, yloc isLeaf] ... x4 ]]
 def parseRFIDInfo(message):
     RFIDinfo = []
-    base = temp.find(b'$')
+    base = message.find(b'$')
     if base >= 0:
         #This means a robot is sending a message back
-        code = temp[base:]
+        print("========================")
+        print(message[base:])
+        print("========================")
+        code = message[base:]
         sampleCode = "$X XXX YYY [XXX YYY L] [XXX YYY L] [XXX YYY L] [XXX YYY L]"
         shortestSample = "$X XXX YYY"
         oneArray = "$X XXX YYY [XXX YYY L]"
         twoArray = "$X XXX YYY [XXX YYY L] [XXX YYY L]"
         threeArray = "$X XXX YYY [XXX YYY L] [XXX YYY L] [XXX YYY L]"
-        RFIDinfo = []
+        RFIDadj = []
         if len(code) > len(sampleCode):
             code = code[:len(sampleCode)]
         if len(code) >= len(shortestSample):
-            nodeNum = temp[base+1]
-            xVals = temp[base+3:base+6]
-            yVals = temp[base+7:base+10]
-        if len(code) >= len(oneArray):
-            x1 = temp[base+12:base+15]
-            y1 = temp[base+16:base+19]
-            b1 = temp[base+20]
-            if b1 == '1':
-                b1 = True
-            else:
-                b1 = False
-            RFIDinfo.append((int(x1),int(y1),b1))
-        if len(code) >= len(twoArray):
-            x2 = temp[base+24:base+27]
-            y2 = temp[base+28:base+31]
-            b2 = temp[base+32]
-            if b2 == '1':
-                b2 = True
-            else:
-                b2 = False
-            RFIDinfo.append((int(x2),int(y2),b2))
-        if len(code) >= len(threeArray):
-            x3 = temp[base+36:base+39]
-            y3 = temp[base+40:base+43]
-            b3 = temp[base+44]
-            if b3 == '1':
-                b3 = True
-            else:
-                b3 = False
-            RFIDinfo.append((int(x3),int(y3),b3))
-        if len(code) >= len(sampleCode):
-            x4 = temp[base+48:base+51]
-            y4 = temp[base+52:base+55]
-            b4 = temp[base+56]
-            if b4 == '1':
-                b4 = True
-            else:
-                b4 = False
-            RFIDinfo.append((int(x4),int(y4),b4))
+            nodeNum = message[base+1]
+            xVals = message[base+3:base+6]
+            yVals = message[base+7:base+10]
+            xint = int(xVals)
+            yint = int(yVals)
+            RFIDinfo.append((xint,yint))
+            if len(code) >= len(oneArray) and chr(message[base+21]) == ']':
+                x1 = message[base+12:base+15]
+                y1 = message[base+16:base+19]
+                b1 = message[base+20]
+                if chr(b1) == '1':
+                    b1 = True
+                else:
+                    b1 = False
+                RFIDadj.append([int(x1),int(y1),b1])
+            if len(code) >= len(twoArray) and chr(message[base+33]) == ']':
+                x2 = message[base+24:base+27]
+                y2 = message[base+28:base+31]
+                b2 = message[base+32]
+                if chr(b2) == '1':
+                    b2 = True
+                else:
+                    b2 = False
+                RFIDadj.append([int(x2),int(y2),b2])
+            if len(code) >= len(threeArray) and chr(message[base+45]) == ']':
+                x3 = message[base+36:base+39]
+                y3 = message[base+40:base+43]
+                b3 = message[base+44]
+                if chr(b3) == '1':
+                    b3 = True
+                else:
+                    b3 = False
+                RFIDadj.append([int(x3),int(y3),b3])
+            if len(code) >= len(sampleCode) and chr(message[base+57]) == ']':
+                x4 = message[base+48:base+51]
+                y4 = message[base+52:base+55]
+                b4 = message[base+56]
+                if chr(b4) == '1':
+                    b4 = True
+                else:
+                    b4 = False
+                RFIDadj.append([int(x4),int(y4),b4])
+
+            RFIDinfo.append(RFIDadj)
 
     if len(RFIDinfo) > 0:
         return RFIDinfo
@@ -89,12 +100,14 @@ def preappendZeros(numStr, lengthRequired):
         numStr = "0" + numStr
     return numStr
 
-def prepAndWriteRFIDInfo(tagLocation,RFIDInfo):
-    need to append numbers in message with zeros to get correct length
+def prepRFIDInfo(tagLocation,RFIDInfo):
     tagLocX = preappendZeros(str(tagLocation[0]),3)
     tagLocY = preappendZeros(str(tagLocation[1]),3)
     message = "$1w " + tagLocX + " " + tagLocY
-    for adj in RFIDInfo:
+    # print("RFIDInfo: ")
+    # print(str(RFIDInfo))
+    RFIDadj = RFIDInfo[1]
+    for adj in RFIDadj:
         message = message + " ["
         adjLocX = preappendZeros(str(adj[0]),3)
         adjLocY = preappendZeros(str(adj[1]),3)
@@ -102,11 +115,59 @@ def prepAndWriteRFIDInfo(tagLocation,RFIDInfo):
         if adj[2] == True:
             adjBool = '1'
         message = message + adjLocX + " " + adjLocY + " " + adjBool + "]"
-    message = message +"\r\n" #preappend the robot node number
-    ser.write(str.encode(message))
-    # print(message)
-    ser.flush()
+    print("MESSAGE")
+    print(message)
+    return message
 
+def plotMap(localMap, robotPosition):
+    # fig = plt.gcf()
+    # ax = plt.gca()
+    print("PLOTTING MAP")
+    # mapping.plotGraph(localMap,[robotPosition], fig, ax)
+    # plt.pause(0.001)
+    # if figure == None:
+    #     figure = plt.gcf()
+    # if axis == None:
+    #     axis = plt.gca()
+    edges = localMap
+    robotLocations = [robotPosition]
+    plt.clf()
+    plt.xlim(0,100)
+    plt.ylim(0,100)
+    plt.xticks(np.arange(0, 100+1, 10.0))
+    plt.yticks(np.arange(0, 100+1, 10.0))
+    plt.grid()
+    plt.gca().invert_yaxis()
+    plt.gca().xaxis.tick_top()
+    # axis.invert_yaxis()
+    # axis.xaxis.tick_top()
+
+    for index in range(len(edges)):
+        edge = edges[index]
+        if edge[2] == False:
+            #The node has yet to be explored
+            mapping.plotEdge(edge[0],edge[1],edge[2])
+    #Now graph the explored edges in red
+    for index in range(len(edges)):
+        edge = edges[index]
+        if edge[2] == True:
+            #The node has been explored
+            mapping.plotEdge(edge[0],edge[1],edge[2])
+
+    colors = ['k','DarkGray','c']
+    for index in range(len(robotLocations)):
+        node = robotLocations[index]
+        if index > len(colors) - 1:
+            color = colors[len(colors) - 1]
+        else:
+            color = colors[index]
+
+        plt.plot([node[0], node[0]], [node[1], node[1]], marker = 'o', c = color)
+
+
+    plt.gcf().canvas.draw_idle()
+    # figure.canvas.draw_idle()
+    plt.pause(0.001)
 
 
 #Returns the initialized graph
@@ -136,19 +197,19 @@ def main():
     ser = serial.Serial('COM3', 115200, timeout=0)
     print(ser.name)
 
-    targetState = (20,80,0)
+    # targetState = (20,80,0)
     robotNode = 1
-    robotTargetLoc1 = (40,50)
+    robotTargetLoc1 = (80,20)
     robotMap = []
     # robotLocation2 = (60,70)
     globalMap = initializeGraph()
-    mapping.plotGraph(graph,[robotTargetLoc1])
+    mapping.plotGraph(robotMap,[robotTargetLoc1])
 
     #Holds the values of the four corners of the robotic environment. Goes clockwise starting with the top left corner
     #The ids for the aruco tags for each of the four corners goes from 0 to 3 clockwise, starting with the top left corner
     fourCorners = [[],[],[],[]]
 
-    vc = cv2.VideoCapture(0)
+    vc = cv2.VideoCapture(1)
 
     # np.load("sample_images.npz")
     with np.load("sample_images.npz") as data:
@@ -169,7 +230,12 @@ def main():
     a = ''
     initialized = False
     initialxya = []
+    iter = 0
     while (vc.isOpened()):
+        # if iter % 90 == 0:
+        #     plt.pause(0.001)
+        iter = (iter + 1) % 25
+
         ret,frame = vc.read()
         image = frame
         # image = cv2.imread("52814747.png")
@@ -239,14 +305,28 @@ def main():
             if temp == b'q' or temp == 'Q':
                 ser.close()
                 break
-            print(temp)
+            # print(temp)
             # if temp[0] == '$':
-            RFIDinfo = parseRFIDInfo(message)
-            
-            (newTargetLoc, info) = mapping.updateMapandDetermineNextStep(robotMap,globalMap,robotTargetLoc1,RFIDinfo)
-            prepAndWriteRFIDInfo(robotTargetLoc1,info)
-            robotTargetLoc1 = newTargetLoc
-            mapping.plotGraph(graph,[robotTargetLoc1])
+            if len(temp) > 0:
+                RFIDinfo = parseRFIDInfo(temp)
+                print("RFID Info: ")
+                print(RFIDinfo)
+                # print("RFIDInfo: " + str(RFIDinfo))    
+                if RFIDinfo != None:
+                    if mapping.euclideanDistance((x,y),(RFIDinfo[0][0],RFIDinfo[0][1])) < 10 and mapping.euclideanDistance((x,y),robotTargetLoc1) < 10: #Make sure we're in the range of the tag we think we are
+                        (newTargetLoc, info,preprocessedMap) = mapping.updateMapandDetermineNextStep(robotMap,globalMap,robotTargetLoc1,RFIDinfo)
+                        print("------------------" + str(newTargetLoc) + "---------------------")
+                        #NOTE: To write, uncomment the 5 lines below
+                        # message = prepRFIDInfo(robotTargetLoc1,info)
+                        # message = message +"\r\n"
+                        # ser.write(str.encode(message))
+                        # # print(message)
+                        # ser.flush()
+
+                        mapping.plotGraph(preprocessedMap,[robotTargetLoc1])
+                        robotTargetLoc1 = newTargetLoc
+                        # mapping.plotGraph(robotMap,[robotTargetLoc1])
+
 
                 # if len(code) >= len(shortestSample):
                 # # if not xVals and not yVals:
@@ -255,6 +335,9 @@ def main():
                 #         targetState = tempState 
                 #         print("------------- NEW TARGET STATE ----------")
                 #         print(targetState)
+        first = True
+        job = multiprocessing.Process(target=plotMap,args=(robotMap,(x,y)))
+        
 
         # time.sleep(0.1)
         # print(x == '')
@@ -264,6 +347,17 @@ def main():
         if (x != '' and y != '' and a != ''):
             # print("x: " + str(x))
             # print("y: " + str(y))
+            #     
+            #     plt.pause(0.001)
+            # job.start()
+            # job.join()
+            # if iter % 45 == 0:
+                # job.start()
+                # mapping.plotGraph(robotMap,[(x,y)])
+                # plotMap(robotMap,(x,y))
+            # if first:
+            #     job.start()
+
             if (len(initialxya) < 10): #looking to find theaverage of the first several measurements to get an accurate starting point
                 initialxya.append((x,y,a))
 
@@ -284,7 +378,7 @@ def main():
                     prevxya = (avex,avey,avea)
                     prevxya2 = (avex,avey,avea)
                     initialized = True
-                    print(initialxya)
+                    # print(initialxya)
                     previouslyMissed = False
                     falsePrev = prevxya
                 else:
@@ -296,7 +390,7 @@ def main():
                     if(True):
                     # if (not withinRange(a,prevxya[2] - math.pi,math.pi*4/8)):
                     # if (withinRange(a,prevxya2[2], math.pi * 3/ 4) and withinRange(a,prevxya[2], math.pi * 2/4)) or (previouslyMissed and withinRange(a,falsePrev[2],math.pi * 1 /8)): #3/4 1/2Make sure the angle doesn't flip an unreasonable amount
-                        message = robotControl.prepareControlMessage((x,y,a),targetState)
+                        message = robotControl.prepareControlMessage((x,y,a),robotTargetLoc1)
                         message = "$" + str(robotNode) + str(message) + '\r\n' #preappend the robot node number
                         ser.write(str.encode(message))
                         # print(message)
@@ -321,7 +415,6 @@ def main():
                         # print("A: " + str(a))
                         falsePrev = (x,y,a)
                         previouslyMissed = True
-
 
 
     cv2.waitKey(0)

@@ -104,8 +104,8 @@ void loop() {
   {
     String serialMessage = Serial.readString();
     serialMessage.trim();
-    Serial.print("Got message at arduino: ");
-    Serial.println(serialMessage);
+//    Serial.print("Got message at arduino: ");
+//    Serial.println(serialMessage);
     int nodeNum = serialMessage.charAt(1) - '0';
     if ( nodeNum == 1 || nodeNum == 2 || nodeNum == 3) {
       radio.stopListening();                                    // First, stop listening so we can talk.
@@ -123,8 +123,8 @@ void loop() {
 
       //      String message_to_send = serialMessage.substring(2, serialMessage.length());
       String message_to_send = serialMessage;
-      Serial.print("Going to send: ");
-      Serial.println(message_to_send);
+//      Serial.print("Going to send: ");
+//      Serial.println(message_to_send);
       //unsigned char message[message_length];
       //String personalized_message = message_to_send + nodeNum;
       //      message_to_send.getBytes((unsigned char*)message, message_length);
@@ -154,11 +154,11 @@ void loop() {
         stringToPacket(message_to_send, &p);
         if (!radio.write( &p, sizeof(p) )) {
           Serial.println("Couldn't send message:");
-          Serial.print(message_to_send);
+//          Serial.print(message_to_send);
           Serial.println(" Is the receiver on?");
         } else {
-          Serial.println(F("Sent: "));
-          Serial.println(message_to_send);
+//          Serial.println(F("Sent: "));
+//          Serial.println(message_to_send);
           printDataBlock(p.dataBlock);
 
         }
@@ -166,11 +166,11 @@ void loop() {
         stringToCommand(message_to_send, &(command));
         if (!radio.write( &command, sizeof(command) )) {
           Serial.println("Couldn't send message:");
-          Serial.print(message_to_send);
+//          Serial.print(message_to_send);
           Serial.println(" Is the receiver on?");
         } else {
-          Serial.println(F("Sent: "));
-          Serial.println(message_to_send);
+//          Serial.println(F("Sent: "));
+//          Serial.println(message_to_send);
           printCommand(command);
 
         }
