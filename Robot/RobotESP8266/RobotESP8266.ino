@@ -347,10 +347,6 @@ String readRFIDTag() {
     return "";
   }
 
-  // Choose the sector and block to read from
-  byte sector         = 2;
-  byte blockAddr      = 8;
-  byte trailerBlock   = 11;
   MFRC522::StatusCode status;
   byte buffer[18];
   byte size = sizeof(buffer);
@@ -404,7 +400,7 @@ bool writeRFIDTag(String toWrite) {
 
   if ( !validateTag() ) {
     //      Serial.println("Can't read or write to the tag");
-    return "";
+    return false;
   }
 
   MFRC522::StatusCode status;
