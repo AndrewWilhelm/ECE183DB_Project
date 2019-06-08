@@ -120,7 +120,7 @@ void loop() {
       PACKET p;
       DATABLOCK data = p.dataBlock;
       p.message = message_to_send[1];
-      if(p.message != 'r' && p.message != 'w' && p.message != 'c') {
+      if(p.message != 'r' && p.message != 'w' && p.message != 'c' && p.message != 'e') {
         Serial.print("Unknown message: ");
         Serial.println(p.message);
         return;
@@ -358,19 +358,7 @@ char *float2s(float f, unsigned int digits /*=2*/)
 
   return buf;
 }
-//
-// Handy function to print hex values
-// of the bytes of a float.  Sometimes
-// helps you see why things don't
-// get rounded to the values that you
-// might think they should.
-//
-// You can print the actual byte values
-// and compare with the floating point
-// representation that is shown in a a
-// reference like
-//    [urlhttp://en.wikipedia.org/wiki/Floating_point[/url]
-//
+
 void printBytes(float f)
 {
   unsigned char *chpt = (unsigned char *)&f;
