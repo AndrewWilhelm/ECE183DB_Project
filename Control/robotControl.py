@@ -40,7 +40,7 @@ def withinXYMargin(currentPoint,targetPoint):
 #Return: Foward instruction and speed proportional to distance from point if current distance is greater than a given margin
 #		Otherwise return an empty string
 def xyCheck(currentPoint,targetPoint):
-	motorMaxValue = 1023 #max pwm value to motor
+	motorMaxValue = 950 #max pwm value to motor
 	motorMinValue = 700 #min pwm value to motor to still have vehicle movement
 	maxDist = 100
 

@@ -50,9 +50,13 @@ def convertToRobotLocation(arucoX,arucoY):
     # slopeX = (-0.0041*robotY) + 0.8914
     # interceptX = (0.2417 * robotY) + 6.1792
     # robotX = (arucoX * slopeX) + interceptX
-    robotY = -(0.00496 * math.pow(arucoY,2)) + (1.288*arucoY) + 18.279
-    slopeX = (-0.00394*robotY) + 0.8721
-    interceptX = (0.2195 * robotY) + 7.189
+    # robotY = -(0.00496 * math.pow(arucoY,2)) + (1.288*arucoY) + 18.279
+    # slopeX = (-0.00394*robotY) + 0.8721
+    # interceptX = (0.2195 * robotY) + 7.189
+    # robotX = (arucoX * slopeX) + interceptX
+    robotY = -(0.00608 * math.pow(arucoY,2)) + (1.373*arucoY) + 18.1245
+    slopeX = (-0.00426*robotY) + 0.898641
+    interceptX = (0.230658 * robotY) + 5.24549
     robotX = (arucoX * slopeX) + interceptX
     return(robotX,robotY)
 
@@ -62,7 +66,7 @@ def main():
     #The ids for the aruco tags for each of the four corners goes from 0 to 3 clockwise, starting with the top left corner
     fourCorners = [[],[],[],[]]
 
-    vc = cv2.VideoCapture(0)
+    vc = cv2.VideoCapture(1)
 
     # np.load("sample_images.npz")
     with np.load("sample_images.npz") as data:

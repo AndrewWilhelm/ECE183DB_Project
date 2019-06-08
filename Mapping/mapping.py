@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt 
 import numpy as np
 import time
+import copy
 import math
 
 #Plots the corresponding edge that corresponds to node1 and node 2 into the plot
@@ -22,6 +23,11 @@ def plotEdge(node1,node2,isExplored):
 #Where isExplored is a boolean indicating if that edge has been explored
 #robotLocations is a list of robotLocations. A colored dot will be drawn at these nodes
 def plotGraph(edges,robotLocations=[]):
+	# if figure == None:
+	# 	figure = plt.gcf()
+	# if axis == None:
+	# 	axis = plt.gca()
+
 	plt.clf()
 	plt.xlim(0,100)
 	plt.ylim(0,100)
@@ -30,9 +36,15 @@ def plotGraph(edges,robotLocations=[]):
 	plt.grid()
 	plt.gca().invert_yaxis()
 	plt.gca().xaxis.tick_top()
+	# axis.invert_yaxis()
+	# axis.xaxis.tick_top()
 
 	for index in range(len(edges)):
 		edge = edges[index]
+		# print("edges:")
+		# print(edges)
+		# print("edge:")
+		# print(edge)
 		if edge[2] == False:
 			#The node has yet to be explored
 			plotEdge(edge[0],edge[1],edge[2])
@@ -50,11 +62,13 @@ def plotGraph(edges,robotLocations=[]):
 			color = colors[len(colors) - 1]
 		else:
 			color = colors[index]
+
 		plt.plot([node[0], node[0]], [node[1], node[1]], marker = 'o', c = color)
 
 
 	plt.gcf().canvas.draw_idle()
-	plt.pause(0.1)
+	# figure.canvas.draw_idle()
+	plt.pause(0.001)
 
 def manhattanDistance(startingNode,targetNode):
 	return (abs(startingNode[0] - targetNode[0]) + abs(startingNode[1] - targetNode[1]))
@@ -124,7 +138,7 @@ def findValidPath(startingNode,targetNode,edges):
 			gscore[neighbor] = tentative_gscore
 			fscore[neighbor] = gscore[neighbor] + manhattanDistance(neighbor,targetNode)
 
-def euclidieanDistance(node1,node2):
+def euclideanDistance(node1,node2):
 	return math.sqrt(math.pow(abs(node1[0]-node2[0]),2) + math.pow(abs(node1[1]-node2[1]),2))
 
 #Returns the closest node to an arbitrary point (point need not be in the graph)
@@ -141,7 +155,7 @@ def getClosestNode(point,edges):
 	minDistance = 1000
 	closestNode = None
 	for index in range(len(nodeList)):
-		dist = euclidieanDistance(point,nodeList[index])
+		dist = euclideanDistance(point,nodeList[index])
 		if  dist < minDistance:
 			minDistance = dist
 			closestNode = nodeList[index] 
@@ -156,7 +170,14 @@ def isEdgeinGraph(edge,graph):
 	v4 = (edge[0],edge[1],False)
 	v5 = (edge[1],edge[0],True)
 	v6 = (edge[1],edge[0],False)
-	if v1 in graph or v2 in graph or v3 in graph or v4 in graph:
+	#Some graphs use arrays instead of tuples
+	v7 = [edge[0],edge[1],True]
+	v8 = [edge[0],edge[1],False]
+	v9 = [edge[1],edge[0],True]
+	v10 = [edge[1],edge[0],False]
+	if v1 in graph or v2 in graph or v3 in graph or v4 in graph or v5 in graph or v6 in graph:
+		return True
+	if v7 in graph or v8 in graph or v9 in graph or v10 in graph:
 		return True
 	return False
 
@@ -183,7 +204,7 @@ def getNextMove(localMap,robotLocation, allRobotTargetLocations=[],robotEdges=[]
 			continue
 
 		if edge[0] == robotLocation and edge[2] == False:
-			print("gets here")
+			# print("gets here")
 			if edge[1] in allRobotTargetLocations:#Another robot just beat it to that node
 				continue
 			# edge[2] = True
@@ -265,10 +286,21 @@ def updateMapUsingSensing(mapToUpdate,globalMap,robotLocation):
 def updateMapUsingRFID(mapToUpdate,globalMap,RFIDInfo):
 	tagLoc = RFIDInfo[0]
 	adjacentTags = RFIDInfo[1]
+	# print("Adjacent Tags:")
+	# print(adjacentTags)
 	for adj in adjacentTags:
 		isLeaf = adj[2]
 		edge = (tagLoc,(adj[0],adj[1]))
+		# print("ADJ:")
+		# print(adj)
+		# print("EDGE:")
+		# print(edge)
+		# print("GLOBAL MAP:")
+		# print(globalMap)
 		if isEdgeinGraph(edge,globalMap):
+			# print("//////////////////////////////////////////")
+			# print(mapToUpdate)
+			# print("done with map")
 			if (edge[0],edge[1],False) in mapToUpdate:
 				#the edge is already in the map but not explored
 				if isLeaf:
@@ -282,6 +314,11 @@ def updateMapUsingRFID(mapToUpdate,globalMap,RFIDInfo):
 			#if it gets here, then the edge has either already been explored
 			#or it is not in the map at all
 			if not isEdgeinGraph(edge,mapToUpdate):
+				# print("======================")
+				# print("Edge:")
+				# print(edge)
+				# print("mapToUpdate")
+				# print(mapToUpdate)
 				if isLeaf:
 					mapToUpdate.append((edge[0],edge[1],True))
 				else:
@@ -291,13 +328,26 @@ def updateMapUsingRFID(mapToUpdate,globalMap,RFIDInfo):
 #graph uses (x,y,isExplored) edges
 def determineIsLeaf(node,graph):
 	numEdges = 0
+	numExploredEdges = 0
 	for edge in graph:
-		if edge[2] == True:
-			#Can only know if it's a leaf if that edge (and thus that node) has been explored
-			if edge[0] == node or edge[1] == node:
-				#This is an edge coming out of the selected node
-				numEdges = numEdges + 1
-	if numEdges == 1:
+		if (edge[0] == node or edge[1] == node):
+			#This is an edge coming out of the selected node
+			numEdges = numEdges + 1
+			if edge[2] == True:
+				numExploredEdges = numExploredEdges + 1
+	# print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+	# print("Node:")
+	# print(node)
+	# print("graph:")
+	# print(graph)
+	# print("numEdges:")
+	# print(numEdges)
+	# print("Explored:")
+	# print(numExploredEdges)
+	if numExploredEdges == 1 and numEdges == 1:
+		#Need to make sure that there is exactly one explored edge
+		#i.e. the node must have been visited at least once (to verify/establish the local edges)
+		#and the node can't have one explored edge and other unexplored edges
 		return True
 	return False
 
@@ -343,13 +393,17 @@ def updateMapandDetermineNextStep(localMap,globalMap,robotLocation,RFIDInfo,allR
 
 	#update robot map using RFID tag
 	updateMapUsingRFID(localMap,globalMap,RFIDInfo)
+	# print("********************************* NEW MAP ***********************************")
+	# print(localMap)
+	# print("*****************************************************************************")
+	preprocessedMap = copy.deepcopy(localMap)
 
 	#get the next move using the robot map. This will also update the robot map to mark that edge has isExplored
 	target = getNextMove(localMap,robotLocation,allRobotTargetLocations,robotEdges)
 
 	#write to the RFID Tag (this can be moved to after updateMapUsingRFID if necessary)
 	info = genRFIDTagUpdate(localMap,robotLocation)
-	return (target,info)
+	return (target,info,preprocessedMap)
 
 
 def main():
