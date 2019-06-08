@@ -100,7 +100,7 @@ def preappendZeros(numStr, lengthRequired):
         numStr = "0" + numStr
     return numStr
 
-def prepRFIDInfo(tagLocation,RFIDInfo):
+def prepRFIDInfo(tagLocation,RFIDInfo,graph):
     tagLocX = preappendZeros(str(tagLocation[0]),3)
     tagLocY = preappendZeros(str(tagLocation[1]),3)
     message = "$1w " + tagLocX + " " + tagLocY
@@ -112,7 +112,11 @@ def prepRFIDInfo(tagLocation,RFIDInfo):
         adjLocX = preappendZeros(str(adj[0]),3)
         adjLocY = preappendZeros(str(adj[1]),3)
         adjBool = '0'
-        if adj[2] == True:
+        # if adj[2] == True:
+        # print("#############")
+        # print(adj[0])
+        # print(adj[1])
+        if mapping.determineIsLeaf((adj[0],adj[1]),graph) == True:
             adjBool = '1'
         message = message + adjLocX + " " + adjLocY + " " + adjBool + "]"
     print("MESSAGE")
@@ -122,7 +126,7 @@ def prepRFIDInfo(tagLocation,RFIDInfo):
 def plotMap(localMap, robotPosition):
     # fig = plt.gcf()
     # ax = plt.gca()
-    print("PLOTTING MAP")
+    # print("PLOTTING MAP")
     # mapping.plotGraph(localMap,[robotPosition], fig, ax)
     # plt.pause(0.001)
     # if figure == None:
@@ -204,6 +208,7 @@ def main():
     # robotLocation2 = (60,70)
     globalMap = initializeGraph()
     mapping.plotGraph(robotMap,[robotTargetLoc1])
+    performRobotWriting = True
 
     #Holds the values of the four corners of the robotic environment. Goes clockwise starting with the top left corner
     #The ids for the aruco tags for each of the four corners goes from 0 to 3 clockwise, starting with the top left corner
@@ -316,12 +321,12 @@ def main():
                     if mapping.euclideanDistance((x,y),(RFIDinfo[0][0],RFIDinfo[0][1])) < 10 and mapping.euclideanDistance((x,y),robotTargetLoc1) < 10: #Make sure we're in the range of the tag we think we are
                         (newTargetLoc, info,preprocessedMap) = mapping.updateMapandDetermineNextStep(robotMap,globalMap,robotTargetLoc1,RFIDinfo)
                         print("------------------" + str(newTargetLoc) + "---------------------")
-                        #NOTE: To write, uncomment the 5 lines below
-                        # message = prepRFIDInfo(robotTargetLoc1,info)
-                        # message = message +"\r\n"
-                        # ser.write(str.encode(message))
-                        # # print(message)
-                        # ser.flush()
+                        if performRobotWriting:
+                            message = prepRFIDInfo(robotTargetLoc1,info,preprocessedMap)
+                            message = message +"\r\n"
+                            ser.write(str.encode(message))
+                            # print(message)
+                            ser.flush()
 
                         mapping.plotGraph(preprocessedMap,[robotTargetLoc1])
                         robotTargetLoc1 = newTargetLoc

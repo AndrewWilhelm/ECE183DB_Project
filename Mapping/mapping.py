@@ -204,7 +204,7 @@ def getNextMove(localMap,robotLocation, allRobotTargetLocations=[],robotEdges=[]
 			continue
 
 		if edge[0] == robotLocation and edge[2] == False:
-			print("gets here")
+			# print("gets here")
 			if edge[1] in allRobotTargetLocations:#Another robot just beat it to that node
 				continue
 			# edge[2] = True
@@ -286,21 +286,21 @@ def updateMapUsingSensing(mapToUpdate,globalMap,robotLocation):
 def updateMapUsingRFID(mapToUpdate,globalMap,RFIDInfo):
 	tagLoc = RFIDInfo[0]
 	adjacentTags = RFIDInfo[1]
-	print("Adjacent Tags:")
-	print(adjacentTags)
+	# print("Adjacent Tags:")
+	# print(adjacentTags)
 	for adj in adjacentTags:
 		isLeaf = adj[2]
 		edge = (tagLoc,(adj[0],adj[1]))
-		print("ADJ:")
-		print(adj)
-		print("EDGE:")
-		print(edge)
-		print("GLOBAL MAP:")
-		print(globalMap)
+		# print("ADJ:")
+		# print(adj)
+		# print("EDGE:")
+		# print(edge)
+		# print("GLOBAL MAP:")
+		# print(globalMap)
 		if isEdgeinGraph(edge,globalMap):
-			print("//////////////////////////////////////////")
-			print(mapToUpdate)
-			print("done with map")
+			# print("//////////////////////////////////////////")
+			# print(mapToUpdate)
+			# print("done with map")
 			if (edge[0],edge[1],False) in mapToUpdate:
 				#the edge is already in the map but not explored
 				if isLeaf:
@@ -314,6 +314,11 @@ def updateMapUsingRFID(mapToUpdate,globalMap,RFIDInfo):
 			#if it gets here, then the edge has either already been explored
 			#or it is not in the map at all
 			if not isEdgeinGraph(edge,mapToUpdate):
+				# print("======================")
+				# print("Edge:")
+				# print(edge)
+				# print("mapToUpdate")
+				# print(mapToUpdate)
 				if isLeaf:
 					mapToUpdate.append((edge[0],edge[1],True))
 				else:
@@ -323,13 +328,26 @@ def updateMapUsingRFID(mapToUpdate,globalMap,RFIDInfo):
 #graph uses (x,y,isExplored) edges
 def determineIsLeaf(node,graph):
 	numEdges = 0
+	numExploredEdges = 0
 	for edge in graph:
-		if edge[2] == True:
-			#Can only know if it's a leaf if that edge (and thus that node) has been explored
-			if edge[0] == node or edge[1] == node:
-				#This is an edge coming out of the selected node
-				numEdges = numEdges + 1
-	if numEdges == 1:
+		if (edge[0] == node or edge[1] == node):
+			#This is an edge coming out of the selected node
+			numEdges = numEdges + 1
+			if edge[2] == True:
+				numExploredEdges = numExploredEdges + 1
+	# print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+	# print("Node:")
+	# print(node)
+	# print("graph:")
+	# print(graph)
+	# print("numEdges:")
+	# print(numEdges)
+	# print("Explored:")
+	# print(numExploredEdges)
+	if numExploredEdges == 1 and numEdges == 1:
+		#Need to make sure that there is exactly one explored edge
+		#i.e. the node must have been visited at least once (to verify/establish the local edges)
+		#and the node can't have one explored edge and other unexplored edges
 		return True
 	return False
 
@@ -375,6 +393,9 @@ def updateMapandDetermineNextStep(localMap,globalMap,robotLocation,RFIDInfo,allR
 
 	#update robot map using RFID tag
 	updateMapUsingRFID(localMap,globalMap,RFIDInfo)
+	# print("********************************* NEW MAP ***********************************")
+	# print(localMap)
+	# print("*****************************************************************************")
 	preprocessedMap = copy.deepcopy(localMap)
 
 	#get the next move using the robot map. This will also update the robot map to mark that edge has isExplored
