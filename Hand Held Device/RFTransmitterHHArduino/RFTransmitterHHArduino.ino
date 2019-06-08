@@ -132,7 +132,7 @@ void loop() {
         Serial.print(message_to_send);
         Serial.println(" Is the receiver on?");
       } else {
-        Serial.println(F("Sent: "));
+        Serial.print(F("Sent: "));
         Serial.println(message_to_send);
         printDataBlock(p.dataBlock);
 
@@ -184,7 +184,7 @@ void loop() {
 } // Loop
 
 // Transmits the message from the node to the computer via serial
-// $nodeNum x y [x1 y1 iL1]...        where x,y are 3 numbers long and iL is either 1 or 0
+// $message x y [x1 y1 iL1]...        where x,y are 3 numbers long and iL is either 1 or 0
 // if the node does not exist, it will not transmit it
 void transmitPacket(PACKET* p) {
   DATABLOCK* d = &((*p).dataBlock);
@@ -222,7 +222,7 @@ void stringToPacket(String data, PACKET* p) {
   int nodeNum = 0;
   int index = 11;
   // this loop assumes index is at the the open bracket
-  while(nodeNum < 4 && (index + 11) < data.length()){ // 11 is the size of [x1 y1 iL1]
+  while(nodeNum < 4 && (index + 11) <= data.length()){ // 11 is the size of [x1 y1 iL1]
     index += 1; //skip past first open bracket
     (*d).otherNodes[nodeNum].x = data.substring(index, index+3).toInt();
     index += 4;

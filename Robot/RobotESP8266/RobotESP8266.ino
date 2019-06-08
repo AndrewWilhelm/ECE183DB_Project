@@ -39,6 +39,7 @@ void turnRight();
 void turnLeft();
 void moveF();
 void stopMove();
+
 const int rightPWM = 800;//The analogWrite uses values from 0 to 1024
 const int leftPWM = 800;
 
@@ -157,7 +158,7 @@ void setup() {
   radio.startListening();
 
   // set the mrfrc522 to 38 dB, 0x0101000
-  mfrc522.PCD_SetAntennaGain(0x05 << 4);
+  mfrc522.PCD_SetAntennaGain(0x06 << 4);
 
   pinMode(LED_PIN, OUTPUT);
   LED_OFF;
@@ -221,8 +222,11 @@ void loop() {
     } else if (packet.message == 'w') {
       Serial.println("Writing...");
       printDataBlock(data);
+      ESP.wdtFeed();
       data_string = String(make_hex_string(std::begin(packetUnion.bytes), std::end(packetUnion.bytes), true, true).c_str());
+      Serial.println(data_string);
       data_string = swapEndiannessForPacket(data_string);
+      ESP.wdtFeed();
       Serial.print("Will write: ");
       Serial.println(data_string);
       if (RFIDTagIsPresent()) {
@@ -904,6 +908,7 @@ std::string make_hex_string(TInputIter first, TInputIter last, bool use_uppercas
 // assumes string is in "XX XX XX ..." format
 // if the packet changes, need to edit the code below
 String swapEndiannessForPacket(String s) {
+    ESP.wdtFeed();
 //  Serial.print("Swapping Endianness for: ");
 //  Serial.println(s);
   int index = 0; // points to first char of that element
@@ -913,27 +918,28 @@ String swapEndiannessForPacket(String s) {
   for (int j = 0; j < sizeof(num_of_bytes) / sizeof(int); j++) {
     for (int k = 0; k < num_of_bytes[j] / 2; k++) {
       String temp = s.substring(index + (k * 3), index + (k * 3) + 2); // the first byte of the swap
-//      Serial.print("temp: ");
-//      Serial.println(temp);
+      Serial.print("temp: ");
+      Serial.println(temp);
       s[index + (k * 3)] = s[index + ((num_of_bytes[j] - 1 - k) * 3)]; // swap the two chars over
       s[index + (k * 3) + 1] = s[index + ((num_of_bytes[j] - 1 - k) * 3) + 1];
       s[index + ((num_of_bytes[j] - 1 - k) * 3)] = temp[0];
       s[index + ((num_of_bytes[j] - 1 - k) * 3) + 1] = temp[1];
     }
     index += num_of_bytes[j] * 3;
-//    Serial.print("Byte num: ");
-//    Serial.println(j);
-//    Serial.print("String looks like: ");
-//    Serial.println(s);
+    Serial.print("Byte num: ");
+    Serial.println(j);
+    Serial.print("String looks like: ");
+    Serial.println(s);
   }
   // then do all of the nodes
 //  Serial.println("Now working on the nodes");
+  ESP.wdtFeed();
   for (int node = 0; node < 4; node++) {
     for (int j = 0; j < sizeof(num_of_bytes) / sizeof(int); j++) {
       for (int k = 0; k < num_of_bytes[j] / 2; k++) {
         String temp = s.substring(index + (k * 3), index + (k * 3) + 2); // the first byte of the swap
-//        Serial.print("temp: ");
-//        Serial.println(temp);
+        Serial.print("temp: ");
+        Serial.println(temp);
         s[index + (k * 3)] = s[index + ((num_of_bytes[j] - 1 - k) * 3)]; // swap the two chars over
         s[index + (k * 3) + 1] = s[index + ((num_of_bytes[j] - 1 - k) * 3) + 1];
         s[index + ((num_of_bytes[j] - 1 - k) * 3)] = temp[0];
@@ -942,8 +948,8 @@ String swapEndiannessForPacket(String s) {
       index += num_of_bytes[j] * 3;
 //      Serial.print("Byte num: ");
 //      Serial.println(j);
-//      Serial.print("String looks like: ");
-//      Serial.println(s);
+      Serial.print("String looks like: ");
+      Serial.println(s);
     }
   }
   return s;
