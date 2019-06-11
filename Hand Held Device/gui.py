@@ -9,7 +9,7 @@ from functools import partial
 ser = serial.Serial('COM12', 115200, timeout=0.1)
 print(ser.name)
 
-state = "Clear"
+state = "Erase"
 
 window = tk.Tk()
 window.title("Hand Held Device Controller")
@@ -233,6 +233,11 @@ def clicked():
     elif btn_text.get() == message + "Read":
         state = "Write"
         # write_text.configure(state="normal")
+    elif btn_text.get() == message + "Clear":
+        state = "Erase"
+        code = '$e'
+        ser.write(str.encode(code))
+        ser.flush()
     else:
         state = "Read"
         # write_text.configure(state="disabled")
