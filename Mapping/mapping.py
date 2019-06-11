@@ -36,6 +36,7 @@ def plotGraph(edges,robotLocations=[]):
 	plt.grid()
 	plt.gca().invert_yaxis()
 	plt.gca().xaxis.tick_top()
+	plt.gca().set_aspect(4/3)
 	# axis.invert_yaxis()
 	# axis.xaxis.tick_top()
 

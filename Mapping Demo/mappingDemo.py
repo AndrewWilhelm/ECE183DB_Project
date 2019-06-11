@@ -202,13 +202,13 @@ def main():
     print(ser.name)
 
     # targetState = (20,80,0)
-    robotNode = 1
+    robotNode = 2
     robotTargetLoc1 = (80,20)
     robotMap = []
     # robotLocation2 = (60,70)
     globalMap = initializeGraph()
     mapping.plotGraph(robotMap,[robotTargetLoc1])
-    performRobotWriting = True
+    performRobotWriting = False
 
     #Holds the values of the four corners of the robotic environment. Goes clockwise starting with the top left corner
     #The ids for the aruco tags for each of the four corners goes from 0 to 3 clockwise, starting with the top left corner
