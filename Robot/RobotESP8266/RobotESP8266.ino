@@ -138,8 +138,8 @@ void setup() {
   Serial.println(result);
   if (result < 1024 / 2) {
     radioNumber = 1;  
-    rightPWM = 800;//The analogWrite uses values from 0 to 1024
-    leftPWM = 800;  
+    rightPWM = 825;//The analogWrite uses values from 0 to 1024
+    leftPWM = 825;  
     // set the mrfrc522 to value of 0x0110000
     mfrc522.PCD_SetAntennaGain(0x06 << 4);
   } else {
@@ -147,7 +147,7 @@ void setup() {
     rightPWM = 830;//The analogWrite uses values from 0 to 1024
     leftPWM = 830;  
     // set the mrfrc522 to 38 dB, 0x0101000
-    mfrc522.PCD_SetAntennaGain(0x05 << 4); //have to set this to a lower value as this module has some power issues
+    mfrc522.PCD_SetAntennaGain(0x06 << 4); //have to set this to a lower value as this module has some power issues
   }
 
   // Set the PA Level low to prevent power supply related issues since this is a
@@ -275,6 +275,7 @@ void loop() {
       //      //      Serial.print("a: ");
       //      //      Serial.println(float2s(firstBlockData.a));
       printDataBlock(firstBlockData.dataBlock);
+      ESP.wdtFeed();
       // send a message that you read an RFID tag
       radio.stopListening();
       radio.openWritingPipe(addresses[radioNumber + 3]);
