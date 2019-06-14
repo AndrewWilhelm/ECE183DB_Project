@@ -202,13 +202,13 @@ def main():
     print(ser.name)
 
     # targetState = (20,80,0)
-    robotNode = 2
+    robotNode = 1
     robotTargetLoc1 = (80,20)
     robotMap = []
     # robotLocation2 = (60,70)
     globalMap = initializeGraph()
     mapping.plotGraph(robotMap,[robotTargetLoc1])
-    performRobotWriting = False
+    performRobotWriting = True
 
     #Holds the values of the four corners of the robotic environment. Goes clockwise starting with the top left corner
     #The ids for the aruco tags for each of the four corners goes from 0 to 3 clockwise, starting with the top left corner
@@ -325,7 +325,8 @@ def main():
                             message = prepRFIDInfo(robotTargetLoc1,info,preprocessedMap)
                             message = message +"\r\n"
                             ser.write(str.encode(message))
-                            # print(message)
+                            print("***********Writing Message*************")
+                            print(message)
                             ser.flush()
 
                         mapping.plotGraph(preprocessedMap,[robotTargetLoc1])
@@ -363,7 +364,7 @@ def main():
             # if first:
             #     job.start()
 
-            if (len(initialxya) < 10): #looking to find theaverage of the first several measurements to get an accurate starting point
+            if (len(initialxya) < 10): #looking to find the average of the first several measurements to get an accurate starting point
                 initialxya.append((x,y,a))
 
             else:

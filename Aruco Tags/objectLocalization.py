@@ -54,9 +54,13 @@ def convertToRobotLocation(arucoX,arucoY):
     # slopeX = (-0.00394*robotY) + 0.8721
     # interceptX = (0.2195 * robotY) + 7.189
     # robotX = (arucoX * slopeX) + interceptX
-    robotY = -(0.00608 * math.pow(arucoY,2)) + (1.373*arucoY) + 18.1245
-    slopeX = (-0.00426*robotY) + 0.898641
-    interceptX = (0.230658 * robotY) + 5.24549
+    # robotY = -(0.00608 * math.pow(arucoY,2)) + (1.373*arucoY) + 18.1245
+    # slopeX = (-0.00426*robotY) + 0.898641
+    # interceptX = (0.230658 * robotY) + 5.24549
+    # robotX = (arucoX * slopeX) + interceptX
+    robotY = -(0.00499 * math.pow(arucoY,2)) + (1.266*arucoY) + 19.949
+    slopeX = (-0.00247*robotY) + 0.8317
+    interceptX = (0.142053 * robotY) + 9.903992
     robotX = (arucoX * slopeX) + interceptX
     return(robotX,robotY)
 

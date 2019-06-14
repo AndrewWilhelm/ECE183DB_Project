@@ -10,7 +10,7 @@ import robotControl
 
 targetState = (50,50,0)
 
-ser = serial.Serial('COM4', 115200, timeout=0)
+ser = serial.Serial('COM3', 115200, timeout=0)
 print(ser.name)
 #NOTE: Our camera is 480 height by 640 width
 # So the possible x values are 0 to 640 and the max y values are 0 to 480
@@ -46,7 +46,7 @@ def scalePoint(fourCorners, point):
 #The ids for the aruco tags for each of the four corners goes from 0 to 3 clockwise, starting with the top left corner
 fourCorners = [[],[],[],[]]
 
-vc = cv2.VideoCapture(0)
+vc = cv2.VideoCapture(1)
 
 # np.load("sample_images.npz")
 with np.load("sample_images.npz") as data:
@@ -105,7 +105,7 @@ while (vc.isOpened()):
                 if (len(fourCorners[0]) > 0 and len(fourCorners[1]) > 0 and len(fourCorners[2]) > 0 and len(fourCorners[3]) > 0):
                     #print("Scaled: " + str(scalePoint(fourCorners, getRectMid(corners[i][0]))))
                     [x,y] = scalePoint(fourCorners, getRectMid(corners[i][0]))
-                    [x,y] = objectLocalization.convertToRobotLocation(x,y)
+                    # [x,y] = objectLocalization.convertToRobotLocation(x,y)
 
     # print(corners)
     # print(ids)

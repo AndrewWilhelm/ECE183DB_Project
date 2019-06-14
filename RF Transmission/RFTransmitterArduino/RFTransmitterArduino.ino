@@ -190,6 +190,7 @@ void loop() {
 
   // now check to see if any messages from the nodes
   for ( uint8_t nodeNum = 1; nodeNum <= 3; nodeNum++) {
+//    Serial.println("Running the loop");
     if (radio.available(&nodeNum)) {
       PACKETUNION packetUnion;
       while (radio.available(&nodeNum)) {                                   // While there is data ready
@@ -198,6 +199,8 @@ void loop() {
       }
       PACKET p = packetUnion.packet;
       DATABLOCK data = p.dataBlock;
+//      Serial.print("Message: ");
+//      Serial.println(p.message);
       if (p.message == 'r') {
         Serial.println("Got the following message: ");
         //      Serial.println(p.message);

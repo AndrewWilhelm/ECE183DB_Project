@@ -26,7 +26,7 @@ def angleCheck(currentAngle, targetAngle):
 
 #Verify that the targetPoint is not within the xy margin from the currentpoint
 def withinXYMargin(currentPoint,targetPoint):
-	margin = 1
+	margin = 0.1
 	# print(currentPoint)
 	# print(targetPoint)
 	distance = math.sqrt(math.pow(currentPoint[1] - targetPoint[1],2) + math.pow(currentPoint[0] - targetPoint[0],2))
@@ -40,7 +40,7 @@ def withinXYMargin(currentPoint,targetPoint):
 #Return: Foward instruction and speed proportional to distance from point if current distance is greater than a given margin
 #		Otherwise return an empty string
 def xyCheck(currentPoint,targetPoint):
-	motorMaxValue = 950 #max pwm value to motor
+	motorMaxValue = 975 #max pwm value to motor
 	motorMinValue = 700 #min pwm value to motor to still have vehicle movement
 	maxDist = 100
 
